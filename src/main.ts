@@ -1,6 +1,7 @@
 import GUI from 'lil-gui';
 import './style.css';
 import { clearSavedConfig, defaultConfig, loadConfig, saveConfig } from './config';
+import { applyCareer, buy, currentLevelText, customersThisShift, loadCareer, newCareer, nextCost, saveCareer, setupWorld } from './career';
 import { InputController } from './input';
 import { LotRenderer } from './render/renderer';
 import { randomSeed } from './sim/rng';
@@ -13,9 +14,19 @@ const stage = document.getElementById('stage')!;
 const params = new URLSearchParams(location.search);
 let seed = Number(params.get('seed')) || randomSeed();
 
-let world = new World(cfg, seed);
+let career = loadCareer();
+let shopOpen = false;
+
+function makeWorld(): World {
+  if (cfg.career.enabled) applyCareer(cfg, career);
+  const w = new World(cfg, seed);
+  if (cfg.career.enabled) setupWorld(w, cfg, career);
+  return w;
+}
+
+let world = makeWorld();
 let view = new LotRenderer(stage, world, cfg);
-const hud = new Hud(cfg, () => world, () => view, { restart: () => restart(true), tune: () => toggleGui() });
+const hud = new Hud(cfg, () => world, () => view, { restart: () => restart(true), tune: () => toggleGui() }, () => (cfg.career.enabled ? career : null));
 const toast = hud.toast.bind(hud);
 new InputController(stage, () => world, () => view, cfg, toast);
 world.on((e) => toast(e.text, e.tone, e.x !== undefined ? { x: e.x, z: e.z! } : undefined));
@@ -23,7 +34,8 @@ world.on((e) => toast(e.text, e.tone, e.x !== undefined ? { x: e.x, z: e.z! } : 
 function restart(newSeed: boolean) {
   if (newSeed) seed = randomSeed();
   view.dispose();
-  world = new World(cfg, seed);
+  world = makeWorld();
+  gui?.controllersRecursive().forEach((c) => c.updateDisplay());
   view = new LotRenderer(stage, world, cfg);
   world.on((e) => toast(e.text, e.tone, e.x !== undefined ? { x: e.x, z: e.z! } : undefined));
   hud.reset();
@@ -34,8 +46,53 @@ new ResizeObserver(() => view.resize()).observe(stage);
 // Debug handle for the console and automated play tests.
 (window as any).kp = { get world() { return world; }, get view() { return view; }, cfg };
 
+// ---------- career: end of shift + shop ----------
+function endShift() {
+  shopOpen = true;
+  const s = world.stats;
+  const finished = career.shift;
+  career.bank += s.earnings;
+  career.shift++;
+  saveCareer(career);
+  const render = () => {
+    hud.showShop({
+      shift: finished,
+      summary: [
+        ['Earned', `$${s.earnings}`],
+        ['Tips', `$${s.tips}`],
+        ['Parking', `$${s.fees}`],
+        ['Customers served', `${s.served}`],
+        ['Customers lost', `${s.lost}`],
+        ['Wrong keys', `${s.wrongKeys}`],
+      ],
+      bank: career.bank,
+      nextShift: career.shift,
+      nextCustomers: customersThisShift(cfg, career),
+      items: Object.entries(cfg.career.upgrades).map(([id, u]) => {
+        const cost = nextCost(cfg, career, id);
+        return { id, name: u.name, description: u.description, current: currentLevelText(cfg, career, id), cost, affordable: cost !== null && career.bank >= cost };
+      }),
+      onBuy: (id) => { if (buy(cfg, career, id)) render(); },
+      onNext: () => {
+        shopOpen = false;
+        hud.hideShop();
+        restart(true);
+      },
+    });
+  };
+  render();
+}
+
+function resetCareer() {
+  career = newCareer();
+  saveCareer(career);
+  shopOpen = false;
+  hud.hideShop();
+  restart(true);
+}
+
 // ---------- tuning panel ----------
-const gui = new GUI({ title: 'Tuning' });
+var gui = new GUI({ title: 'Tuning' });
 gui.hide();
 function toggleGui() {
   if (gui._hidden) gui.show();
@@ -73,6 +130,7 @@ function addFolder(parent: GUI, name: string, obj: Record<string, any>) {
 }
 for (const [name, obj] of Object.entries(cfg)) addFolder(gui, name, obj as Record<string, any>);
 const actions = {
+  'New career': () => resetCareer(),
   'Restart (same seed) ↻': () => restart(false),
   'Restart (new seed)': () => restart(true),
   'Save tuning': () => toast(saveConfig(cfg) ? 'Tuning saved on this device' : "Couldn't save here", 'info'),
@@ -94,7 +152,8 @@ let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  if (!hud.paused) {
+  if (cfg.career.enabled && !shopOpen && world.shiftOver) endShift();
+  if (!hud.paused && !shopOpen) {
     acc += dt * cfg.sim.timeScale;
     while (acc >= STEP) { world.update(STEP); acc -= STEP; }
   }

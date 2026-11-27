@@ -120,6 +120,30 @@ export const defaultConfig = {
     /** Parking fee in $ per minute a car spends parked. */
     parkingRatePerMinute: 2,
   },
+  /**
+   * Career mode: start tiny, earn money each shift, buy upgrades between shifts.
+   * Each upgrade's `costs` has one price per level; buying the last level maxes it out.
+   */
+  career: {
+    enabled: true,
+    /** Customers in shift 1, and how many more each shift after. */
+    baseCustomers: 12,
+    customersPerShift: 3,
+    /** Seconds between arrivals in shift 1, how much faster each shift, and the floor. */
+    baseSpawnInterval: 14,
+    spawnIntervalStep: 1,
+    minSpawnInterval: 5,
+    startValets: 1,
+    startCurbSpots: 2,
+    /** Lot layouts by level: [stalls per row, row pairs]. Level 0 = 4×1 = 8 stalls. */
+    lotLevels: [[4, 1], [6, 1], [8, 1], [6, 2], [8, 2]] as [number, number][],
+    upgrades: {
+      valet: { name: 'Hire a valet', description: '+1 valet', costs: [180, 450, 900] },
+      lot: { name: 'Expand the lot', description: 'More stalls', costs: [120, 250, 450, 700] },
+      curb: { name: 'Widen the curb', description: '+1 curb spot', costs: [150, 300, 500] },
+      shoes: { name: 'Running shoes', description: '+15% valet walking speed', costs: [80, 160, 300] },
+    } as Record<string, { name: string; description: string; costs: number[] }>,
+  },
   /** One color per valet; their order badges use the same color. */
   valetColors: {
     valet1: '#d9473f',

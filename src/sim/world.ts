@@ -110,6 +110,11 @@ export class World {
   streetQueue: number[] = [];
   get queue() { return this.streetQueue.length; }
   readonly seed: number;
+  /** Career shifts: stop arrivals after this many customers (null = endless sandbox). */
+  maxArrivals: number | null = null;
+  arrivals = 0;
+  /** Career upgrade: valet walking speed multiplier. */
+  walkMultiplier = 1;
 
   private rng: Rng;
   private nextId = 1;
@@ -142,6 +147,11 @@ export class World {
       car.stayLeft = this.rng.range(st.stayMin * 0.3, st.stayMax);
       stall.occupant = car.id;
     }
+  }
+
+  /** A career shift is over once every customer has arrived and left (served or lost). */
+  get shiftOver(): boolean {
+    return this.maxArrivals !== null && this.arrivals >= this.maxArrivals && this.streetQueue.length === 0 && this.cars.size === 0;
   }
 
   on(fn: (e: SimEvent) => void) {
@@ -376,7 +386,8 @@ export class World {
   private updateSpawns(dt: number) {
     const T = this.cfg.traffic;
     this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0) {
+    if (this.spawnTimer <= 0 && (this.maxArrivals === null || this.arrivals < this.maxArrivals)) {
+      this.arrivals++;
       this.streetQueue.push(0);
       this.spawnTimer = Math.max(1, T.spawnInterval + this.rng.range(-T.spawnJitter, T.spawnJitter));
     }
@@ -681,7 +692,7 @@ export class World {
         const dx = target.x - v.x;
         const dz = target.z - v.z;
         const dist = Math.hypot(dx, dz);
-        const step = V.walkSpeed * dt;
+        const step = V.walkSpeed * this.walkMultiplier * dt;
         if (step >= dist) {
           v.x = target.x;
           v.z = target.z;

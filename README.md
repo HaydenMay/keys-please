@@ -8,6 +8,8 @@ Play: https://haydenmay.github.io/keys-please/ (deployed automatically from `mai
 
 ## How to play the sandbox
 
+- **Career (default):** you start with 8 stalls, 2 curb spots and 1 valet. A shift ends once every customer has arrived and left. Your earnings go into the bank, and you spend them in a shop with fixed upgrades: hire a valet, expand the lot, widen the curb, running shoes. Each shift brings more customers, arriving faster. Progress saves on the device; use Tune → New career to start over. Set `career.enabled` off for the old endless sandbox.
+
 - **Drop-off:** a car with a yellow diamond is waiting at the curb. Its label shows the reason for the visit and an estimated stay (Gym ~20–40s, Diner ~45–80s, Steakhouse ~2–3 min, Movie ~2–3 min; all tunable under `stores`). Quick visits belong near the curb and long ones deep in the lot. Parked cars get a store-colored roof dot, which you can turn off to make it a memory test.
 - **Earnings** = tip + parking fee ($2 per minute parked). Tips shrink the longer a pickup waits and are scaled by store, so steakhouse customers tip best.
 - **Pickup:** a ticket appears in the Pickups panel. Find that car and send it to the curb. If you pick the wrong car, the keys don't fit.
@@ -33,6 +35,7 @@ npm install
 npm run dev        # local server (use --host to open on your phone on the same Wi-Fi)
 npm run sim        # headless bot shifts: random vs. smart parking, catches stuck cars
 npm run sim -- 20 300 4 2 # stress: 20 shifts, 300s each, an arrival every 4s, only 2 curb spots
+npm run career-sim -- 10  # bot plays a 10-shift career, buying the cheapest upgrades
 npm run build
 ```
 

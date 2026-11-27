@@ -1,3 +1,4 @@
+import type { CareerState } from './career';
 import type { Config } from './config';
 import type { Point } from './sim/graph';
 import type { World } from './sim/world';
@@ -16,7 +17,13 @@ export class Hud {
   private labelPool: HTMLElement[] = [];
   paused = false;
 
-  constructor(private cfg: Config, private world: () => World, private view: () => LotRenderer, handlers: { restart: () => void; tune: () => void }) {
+  constructor(
+    private cfg: Config,
+    private world: () => World,
+    private view: () => LotRenderer,
+    handlers: { restart: () => void; tune: () => void },
+    private career: () => CareerState | null = () => null,
+  ) {
     this.modeBtn.addEventListener('click', () => {
       const order = ['queue', 'tap', 'draw'] as const;
       cfg.controls.valetMode = order[(order.indexOf(cfg.controls.valetMode) + 1) % order.length];
@@ -41,6 +48,42 @@ export class Hud {
   refreshMode() {
     const names = { queue: 'Valets: Queue', tap: 'Valets: Tap', draw: 'Valets: Draw' } as const;
     this.modeBtn.textContent = names[this.cfg.controls.valetMode];
+  }
+
+  showShop(o: {
+    shift: number;
+    summary: [string, string][];
+    bank: number;
+    nextShift: number;
+    nextCustomers: number;
+    items: { id: string; name: string; description: string; current: string; cost: number | null; affordable: boolean }[];
+    onBuy: (id: string) => void;
+    onNext: () => void;
+  }) {
+    const shop = document.getElementById('shop')!;
+    shop.classList.remove('hidden');
+    const rows = o.summary.map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join('');
+    const items = o.items
+      .map((it) => {
+        const label = it.cost === null ? 'Maxed' : `$${it.cost}`;
+        return `<div class="upgrade"><div><div class="u-name">${it.name}</div><div class="u-desc">${it.description} · now ${it.current}</div></div>
+          <button data-id="${it.id}" ${it.affordable ? '' : 'disabled'}>${label}</button></div>`;
+      })
+      .join('');
+    shop.innerHTML = `<div class="card">
+      <h2>Shift ${o.shift} complete</h2>
+      <div class="summary">${rows}</div>
+      <div class="bank">Bank: <b>$${o.bank}</b></div>
+      <h3>Upgrades</h3>
+      <div class="upgrades">${items}</div>
+      <button class="next">Start shift ${o.nextShift} (${o.nextCustomers} customers)</button>
+    </div>`;
+    shop.querySelectorAll<HTMLButtonElement>('.upgrade button').forEach((b) => b.addEventListener('click', () => o.onBuy(b.dataset.id!)));
+    shop.querySelector<HTMLButtonElement>('.next')!.addEventListener('click', o.onNext);
+  }
+
+  hideShop() {
+    document.getElementById('shop')!.classList.add('hidden');
   }
 
   reset() {
@@ -128,7 +171,11 @@ export class Hud {
     const w = this.world();
     const s = w.stats;
     const free = w.lot.stalls.filter((id) => w.lot.nodes[id].occupant === null).length;
+    const c = this.career();
+    const careerText = c && w.maxArrivals !== null ? `<span class="shift">Shift ${c.shift} · ${Math.min(w.arrivals, w.maxArrivals)}/${w.maxArrivals} customers · bank $${c.bank}</span> · ` : '';
+    (document.getElementById('restart-btn') as HTMLButtonElement).textContent = c ? 'Restart shift' : 'New shift';
     this.stats.innerHTML =
+      careerText +
       `<b>$${s.earnings}</b> <span class="dim">($${s.tips} tips + $${s.fees} parking)</span> · ${s.served} served · ${s.lost} lost · ${s.wrongKeys} wrong keys` +
       ` · ${free}/${w.lot.stalls.length} stalls free${w.queue ? ` · <span class="warn">${w.queue} waiting on the street</span>` : ''}` +
       ` · <span class="dim">seed ${w.seed}</span>`;

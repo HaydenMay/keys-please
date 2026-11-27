@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx tools/headless-sim.ts"
+    "sim": "tsx tools/headless-sim.ts",
+    "career-sim": "tsx tools/career-sim.ts"
   },
   "dependencies": {
     "lil-gui": "^0.21.0",
