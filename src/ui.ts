@@ -59,6 +59,8 @@ export class Hud {
       el.style.top = `${s.y}px`;
       document.body.appendChild(el);
     } else {
+      // Don't stack identical messages.
+      if ([...this.toasts.children].some((c) => c.textContent === text)) return;
       this.toasts.appendChild(el);
     }
     setTimeout(() => el.remove(), 1800);

@@ -106,7 +106,9 @@ export class World {
   readonly orders: Order[] = [];
   readonly stats = { earnings: 0, tips: 0, fees: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0 };
   time = 0;
-  queue = 0;
+  /** How long each car waiting on the street has been waiting (oldest first). */
+  streetQueue: number[] = [];
+  get queue() { return this.streetQueue.length; }
   readonly seed: number;
 
   private rng: Rng;
@@ -375,15 +377,21 @@ export class World {
     const T = this.cfg.traffic;
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
-      this.queue++;
+      this.streetQueue.push(0);
       this.spawnTimer = Math.max(1, T.spawnInterval + this.rng.range(-T.spawnJitter, T.spawnJitter));
     }
     // Pickups waiting for the curb go before new arrivals.
-    const pickupWaiting = [...this.cars.values()].some((c) => c.waitingForCurb);
-    while (this.queue > 0 && !pickupWaiting) {
+    for (let i = 0; i < this.streetQueue.length; i++) this.streetQueue[i] += dt;
+    while (this.streetQueue.length && this.streetQueue[0] > this.cfg.customers.streetPatience) {
+      this.streetQueue.shift();
+      this.stats.lost++;
+      this.emit({ type: 'toast', text: 'A driver gave up waiting on the street', tone: 'bad' });
+    }
+    // Arrivals may only take a curb spot that isn't needed by a pickup already on its way.
+    while (this.queue > 0 && this.freeCurbCount() > this.curbDemand()) {
       const spot = this.lot.dropoffCurbs.map((id) => this.lot.nodes[id]).find((n) => n.occupant === null);
       if (!spot) break;
-      this.queue--;
+      this.streetQueue.shift();
       const entry = this.lot.nodes[this.lot.entry];
       const car = this.makeCar(entry.x, entry.z, 0);
       const path = shortestPath(this.lot, entry.id, spot.id)!;
@@ -405,6 +413,21 @@ export class World {
     let r = this.rng.next() * total;
     for (const [name, s] of entries) { r -= Math.max(0, s.weight); if (r <= 0) return name; }
     return entries[0][0];
+  }
+
+  private freeCurbCount(): number {
+    return this.lot.curbs.filter((id) => this.lot.nodes[id].occupant === null && this.lot.nodes[id].reservedFor === null).length;
+  }
+
+  /** Pickups headed for the curb: queued, being fetched, driving there, or waiting in the lane. */
+  private curbDemand(): number {
+    let n = this.orders.filter((o) => o.toCurb).length;
+    for (const v of this.valets) {
+      if (!v.current || !v.current.toCurb) continue;
+      const car = this.cars.get(v.current.carId);
+      if (car && (car.state === 'parked' || car.state === 'awaitingDrive' || car.waitingForCurb || (car.state === 'driving' && this.lot.nodes[car.destNode]?.kind !== 'curb'))) n++;
+    }
+    return n;
   }
 
   private makeCar(x: number, z: number, heading: number): Car {
@@ -485,6 +508,12 @@ export class World {
       }
       case 'awaitingDrive':
         return;
+      case 'curbQueue': {
+        // Curb still jammed: the customer walks out to the car in the lane instead of waiting forever.
+        car.curbWait += dt;
+        if (car.curbWait >= this.cfg.customers.laneHandoffAfter) this.laneHandoff(car);
+        return;
+      }
     }
 
     // Moving states
@@ -534,6 +563,7 @@ export class World {
     }
     if (node.kind === 'lane' && car.waitingForCurb) {
       car.state = 'curbQueue'; // valet stays in the car
+      car.curbWait = 0;
       return;
     }
     // driving → parked or handed off
@@ -549,6 +579,17 @@ export class World {
       car.handoffLeft = this.cfg.customers.handoffTime;
       this.completePickup(car);
     }
+  }
+
+  private laneHandoff(car: Car) {
+    car.waitingForCurb = false;
+    const valet = car.valetId !== null ? this.valets[car.valetId] : null;
+    car.valetId = null;
+    car.claimedBy = null;
+    if (valet) this.exitCar(valet, car);
+    car.state = 'handoff';
+    car.handoffLeft = this.cfg.customers.handoffTime;
+    this.completePickup(car);
   }
 
   private requestPickup(car: Car) {

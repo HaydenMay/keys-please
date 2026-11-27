@@ -12,7 +12,7 @@ Play: https://haydenmay.github.io/keys-please/ (deployed automatically from `mai
 - **Earnings** = tip + parking fee ($2 per minute parked). Tips shrink the longer a pickup waits and are scaled by store, so steakhouse customers tip best.
 - **Pickup:** a ticket appears in the Pickups panel. Find that car and send it to the curb. If you pick the wrong car, the keys don't fit.
 - **Queue mode (default):** tap a car, then tap where it should go. That adds a numbered order to one shared list, and the nearest free valet takes the next order. A car being worked on shows an arrow badge in that valet's color. Tap a queued car to cancel its order. After a job, valets wait a couple of seconds, then walk back to the desk if nothing's queued.
-- **Curb:** any curb spot works for a pickup, even a busy one. If every spot is taken, the valet pulls into the curb lane and waits for one to open. Waiting pickups get the curb before new arrivals do.
+- **Curb:** any curb spot works for a pickup, even a busy one. If every spot is taken, the valet pulls into the curb lane and waits. After a few seconds, the customer walks out to the car there instead. New arrivals can't take a curb spot that an incoming pickup needs, so they wait on the street, and they give up after 30s.
 - **Other valet modes** (top button): **Tap** sends the nearest valet but you drag the car yourself; **Draw** means you drag everything.
 - **Tune** opens a panel with every number and color. Settings marked ↻ need a restart. **Save tuning** keeps your settings on that device.
 - `?seed=123` in the URL replays a specific shift. Space pauses.
@@ -32,7 +32,7 @@ Play: https://haydenmay.github.io/keys-please/ (deployed automatically from `mai
 npm install
 npm run dev        # local server (use --host to open on your phone on the same Wi-Fi)
 npm run sim        # headless bot shifts: random vs. smart parking, catches stuck cars
-npm run sim -- 20 300 7   # 20 shifts, 300s each, an arrival every 7s
+npm run sim -- 20 300 4 2 # stress: 20 shifts, 300s each, an arrival every 4s, only 2 curb spots
 npm run build
 ```
 

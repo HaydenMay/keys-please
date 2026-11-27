@@ -46,7 +46,7 @@ const ranges: Record<string, [number, number, number]> = {
   count: [1, 5, 1], walkSpeed: [1, 15, 0.5], boardTime: [0, 3, 0.1], keyFailTime: [0, 5, 0.1], returnDelay: [0, 15, 0.5],
   driveSpeed: [2, 25, 0.5], reverseSpeed: [1, 15, 0.5], turnRate: [1, 30, 0.5], yieldDistance: [1, 12, 0.5], yieldTimeout: [0.5, 10, 0.5], arrivalSpeed: [2, 25, 0.5],
   spawnInterval: [2, 40, 0.5], spawnJitter: [0, 15, 0.5], startParked: [0, 30, 1],
-  pickupPatience: [5, 180, 5], dropoffPatience: [5, 180, 5], maxTip: [0, 100, 1], minTip: [0, 50, 1], handoffTime: [0, 5, 0.1],
+  pickupPatience: [5, 180, 5], dropoffPatience: [5, 180, 5], streetPatience: [5, 180, 5], maxTip: [0, 100, 1], minTip: [0, 50, 1], handoffTime: [0, 5, 0.1], laneHandoffAfter: [0, 30, 0.5],
   stallsPerRow: [2, 16, 1], rowPairs: [1, 3, 1], stallWidth: [2.4, 4, 0.1], stallDepth: [4.5, 7, 0.1], aisleWidth: [5, 10, 0.5], sideLaneWidth: [5, 10, 0.5], curbSpots: [1, 6, 1], pickupOnlySpots: [0, 3, 1],
   padding: [0, 6, 0.5], stayMin: [5, 400, 5], stayMax: [5, 600, 5], weight: [0, 10, 0.5], tipMultiplier: [0, 4, 0.1], parkingRatePerMinute: [0, 20, 0.5],
 };

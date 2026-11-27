@@ -53,9 +53,13 @@ export const defaultConfig = {
   customers: {
     pickupPatience: 45,
     dropoffPatience: 40,
+    /** How long an arriving driver waits on the street for a curb spot before leaving. */
+    streetPatience: 30,
     maxTip: 20,
     minTip: 2,
     handoffTime: 0.8,
+    /** If every curb spot stays busy this long, the customer walks out to their car in the curb lane. */
+    laneHandoffAfter: 4,
   },
   lot: {
     stallsPerRow: 8, // (restart)

@@ -11,15 +11,18 @@ declare const process: { argv: string[]; exitCode?: number };
 const shifts = Number(process.argv[2] ?? 20);
 const seconds = Number(process.argv[3] ?? 300);
 const spawnOverride = process.argv[4] ? Number(process.argv[4]) : null;
+const curbOverride = process.argv[5] ? Number(process.argv[5]) : null;
 const dt = 1 / 30;
 
 type Strategy = 'random' | 'smart';
 
 function run(strategy: Strategy) {
   const totals = { earnings: 0, tips: 0, fees: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0, stuck: 0 };
+  let worstGap = 0;
   for (let s = 0; s < shifts; s++) {
     const cfg = structuredClone(defaultConfig);
     if (spawnOverride) cfg.traffic.spawnInterval = spawnOverride;
+    if (curbOverride) cfg.lot.curbSpots = curbOverride;
     const world = new World(cfg, 1000 + s);
     const stuckTimers = new Map<number, number>();
     let r = 12345 + s;
@@ -49,7 +52,11 @@ function run(strategy: Strategy) {
       return free[0];
     };
 
+    let lastServed = 0;
+    let lastCount = 0;
     for (let t = 0; t < seconds; t += dt) {
+      if (world.stats.served !== lastCount) { lastCount = world.stats.served; lastServed = t; }
+      worstGap = Math.max(worstGap, t - lastServed);
       for (const car of world.cars.values()) {
         if (world.isQueued(car) || car.claimedBy !== null) continue;
         if (car.state === 'waitingDropoff') {
@@ -73,7 +80,7 @@ function run(strategy: Strategy) {
   }
   const per = (n: number) => (n / shifts).toFixed(1);
   console.log(
-    `${strategy.padEnd(6)} earned/shift $${per(totals.earnings)} (tips $${per(totals.tips)} + parking $${per(totals.fees)})  served ${per(totals.served)}  lost ${per(totals.lost)}  angry ${per(totals.angry)}  stuck ${totals.stuck}`,
+    `${strategy.padEnd(6)} earned/shift $${per(totals.earnings)} (tips $${per(totals.tips)} + parking $${per(totals.fees)})  served ${per(totals.served)}  lost ${per(totals.lost)}  angry ${per(totals.angry)}  stuck ${totals.stuck}  longest gap without a pickup ${worstGap.toFixed(0)}s`,
   );
   return totals.stuck;
 }
