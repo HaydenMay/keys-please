@@ -20,15 +20,12 @@ for (let s = 0; s < shifts; s++) {
   for (let t = 0; t < seconds; t += dt) {
     // Even shifts: queue-mode bot (tap car, tap spot). Odd shifts: assign + drive bot.
     if (s % 2 === 0) {
-      for (const v of world.valets) {
-        if (v.orders.length + (v.current ? 1 : 0) >= cfg.valet.queueLimit) continue;
-        const car = [...world.cars.values()].find(
-          (c) => c.queuedBy === null && c.claimedBy === null && (c.state === 'waitingDropoff' || (c.state === 'parked' && c.requested)),
-        );
-        if (!car) break;
+      for (const car of world.cars.values()) {
+        if (world.isQueued(car) || car.claimedBy !== null) continue;
+        if (!(car.state === 'waitingDropoff' || (car.state === 'parked' && car.requested))) continue;
         const targets = car.requested ? world.lot.curbs : world.lot.stalls;
         const dest = targets.map((id) => world.lot.nodes[id]).find((n) => world.canQueueDest(car, n));
-        if (dest) world.queueOrder(v, car, dest);
+        if (dest) world.queueOrder(car, dest);
       }
     } else {
     // Bot: send free valets to curb drop-offs first, then requested pickups.
@@ -63,7 +60,7 @@ for (let s = 0; s < shifts; s++) {
       }
     }
   }
-  for (const v of world.valets) if (v.state === 'idle' && v.orders.length) { totals.stuck++; console.log('valet idle with orders', s); }
+  if (world.orders.length && world.valets.some((v) => v.state === 'idle')) { totals.stuck++; console.log('valet idle with orders', s); }
   for (const k of Object.keys(world.stats) as (keyof typeof world.stats)[]) totals[k] += world.stats[k];
 }
 

@@ -5,7 +5,7 @@ import { bodyTypes, type BodyType, type Config } from '../config';
 import { buildLot, nearestNode, routeFromDrawing, shortestPath, type LotLayout, type LotNode, type Point } from './graph';
 import { makeRng, type Rng } from './rng';
 
-export type CarState = 'arriving' | 'waitingDropoff' | 'awaitingDrive' | 'driving' | 'parked' | 'handoff' | 'leaving';
+export type CarState = 'arriving' | 'waitingDropoff' | 'awaitingDrive' | 'driving' | 'curbQueue' | 'parked' | 'handoff' | 'leaving';
 export type ValetState = 'idle' | 'walking' | 'boarding' | 'inCar' | 'keyFail' | 'returning';
 
 export interface Car {
@@ -32,13 +32,18 @@ export interface Car {
   claimedBy: number | null;
   /** Valet whose order queue includes this car. */
   queuedBy: number | null;
+  /** Driving to (or sitting in) the curb lane, waiting for a curb spot to open. */
+  waitingForCurb: boolean;
   curbWait: number;
   handoffLeft: number;
 }
 
 export interface Order {
+  id: number;
   carId: number;
+  /** Stall node, or for curb orders the preferred curb spot. */
   dest: number;
+  toCurb: boolean;
 }
 
 export interface Valet {
@@ -52,8 +57,7 @@ export interface Valet {
   pathIdx: number;
   targetCar: number | null;
   timer: number;
-  /** Queue mode: orders waiting, and the one being worked on. */
-  orders: Order[];
+  /** Queue mode: the order this valet is working on. */
   current: Order | null;
 }
 
@@ -93,6 +97,8 @@ export class World {
   readonly cars = new Map<number, Car>();
   readonly valets: Valet[] = [];
   readonly tickets = new Map<number, Ticket>();
+  /** Shared queue-mode order list, oldest first. */
+  readonly orders: Order[] = [];
   readonly stats = { tips: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0 };
   time = 0;
   queue = 0;
@@ -113,7 +119,7 @@ export class World {
     for (let i = 0; i < count; i++) {
       const hx = this.lot.desk.x + (i - (count - 1) / 2) * 1.6;
       const hz = this.lot.desk.z + 0.4;
-      this.valets.push({ id: i, x: hx, z: hz, homeX: hx, homeZ: hz, state: 'idle', path: [], pathIdx: 0, targetCar: null, timer: 0, orders: [], current: null });
+      this.valets.push({ id: i, x: hx, z: hz, homeX: hx, homeZ: hz, state: 'idle', path: [], pathIdx: 0, targetCar: null, timer: 0, current: null });
     }
 
     // A few cars already parked so pickups start early.
@@ -201,57 +207,56 @@ export class World {
     valet.state = 'walking';
   }
 
-  /** Is this spot free for a new queued order? (Curb spots are allowed for any parked car: the keys tell the truth.) */
+  /**
+   * Can this spot be the target of a new order?
+   * Stalls: must be empty and unclaimed. Curb: any curb spot works for a parked car, even a busy one;
+   * the valet drives up and waits for whichever curb spot opens first.
+   */
   canQueueDest(car: Car, n: LotNode): boolean {
-    if (n.id === car.nodeId || n.occupant !== null || n.reservedFor !== null) return false;
-    if (n.kind === 'stall') return true;
+    if (n.id === car.nodeId) return false;
+    if (n.kind === 'stall') return n.occupant === null && n.reservedFor === null;
     if (n.kind === 'curb') return car.state === 'parked';
     return false;
   }
 
-  /** Queue mode: add "get this car, take it there" to a valet's list. */
-  queueOrder(valet: Valet, car: Car, dest: LotNode): { ok: boolean; reason?: string } {
-    if (car.queuedBy !== null) return { ok: false, reason: 'That car is already queued' };
+  /** Queue mode: add "get this car, take it there" to the shared list. The next free valet takes it. */
+  queueOrder(car: Car, dest: LotNode): { ok: boolean; reason?: string } {
+    if (car.queuedBy !== null || this.orders.some((o) => o.carId === car.id)) return { ok: false, reason: 'That car is already queued' };
     if (car.claimedBy !== null) return { ok: false, reason: 'Another valet is on it' };
     if (!(car.state === 'parked' || car.state === 'waitingDropoff')) return { ok: false, reason: "Can't grab that car right now" };
     if (!this.canQueueDest(car, dest)) return { ok: false, reason: car.state === 'waitingDropoff' ? 'New arrivals go to a stall' : 'That spot is taken' };
-    const pending = valet.orders.length + (valet.current ? 1 : 0);
-    if (pending >= Math.max(1, Math.round(this.cfg.valet.queueLimit))) return { ok: false, reason: 'That valet\'s list is full' };
-    valet.orders.push({ carId: car.id, dest: dest.id });
-    car.queuedBy = valet.id;
-    dest.reservedFor = car.id;
+    if (this.orders.length >= Math.max(1, Math.round(this.cfg.valet.maxPendingOrders))) return { ok: false, reason: 'Order list is full' };
+    const toCurb = dest.kind === 'curb';
+    this.orders.push({ id: this.nextId++, carId: car.id, dest: dest.id, toCurb });
+    if (!toCurb) dest.reservedFor = car.id;
     return { ok: true };
   }
 
-  /** Remove a car's order. If the valet was already heading to it, they stop where they are. */
+  /** Remove a car's order. If a valet was already heading to it, they stop where they are. */
   cancelOrder(car: Car): boolean {
+    const idx = this.orders.findIndex((o) => o.carId === car.id);
+    if (idx >= 0) {
+      this.releaseDest(this.orders[idx]);
+      this.orders.splice(idx, 1);
+      return true;
+    }
     if (car.queuedBy === null) return false;
     const valet = this.valets[car.queuedBy];
-    const idx = valet.orders.findIndex((o) => o.carId === car.id);
-    if (idx >= 0) {
-      this.releaseDest(valet.orders[idx]);
-      valet.orders.splice(idx, 1);
-    } else if (valet.current && valet.current.carId === car.id) {
-      if (valet.state === 'inCar' || car.state === 'driving') return false; // already moving: too late
-      this.releaseDest(valet.current);
-      valet.current = null;
-      if (car.claimedBy === valet.id) car.claimedBy = null;
-      valet.targetCar = null;
-      valet.path = [];
-      valet.state = 'idle';
-    }
+    if (!valet.current || valet.current.carId !== car.id) { car.queuedBy = null; return true; }
+    if (valet.state === 'inCar' || car.state === 'driving') return false; // already moving: too late
+    this.releaseDest(valet.current);
+    valet.current = null;
+    if (car.claimedBy === valet.id) car.claimedBy = null;
+    valet.targetCar = null;
+    valet.path = [];
+    valet.state = 'idle';
+    valet.timer = this.cfg.valet.returnDelay;
     car.queuedBy = null;
     return true;
   }
 
-  /** Order position (1-based) and valet for a car, for badges. */
-  orderOf(carId: number): { valet: Valet; index: number; dest: number } | null {
-    for (const v of this.valets) {
-      if (v.current && v.current.carId === carId) return { valet: v, index: 1, dest: v.current.dest };
-      const i = v.orders.findIndex((o) => o.carId === carId);
-      if (i >= 0) return { valet: v, index: i + 1 + (v.current ? 1 : 0), dest: v.orders[i].dest };
-    }
-    return null;
+  isQueued(car: Car): boolean {
+    return car.queuedBy !== null || this.orders.some((o) => o.carId === car.id);
   }
 
   private releaseDest(o: Order) {
@@ -259,35 +264,44 @@ export class World {
     if (n.reservedFor === o.carId) n.reservedFor = null;
   }
 
-  private startNextOrder(v: Valet): boolean {
-    while (v.orders.length) {
-      const o = v.orders.shift()!;
+  /** Hand the oldest orders to the nearest free valets. */
+  private dispatchOrders() {
+    while (this.orders.length) {
+      const o = this.orders[0];
       const car = this.cars.get(o.carId);
-      if (!car || !(car.state === 'parked' || car.state === 'waitingDropoff')) {
+      if (!car || !(car.state === 'parked' || car.state === 'waitingDropoff') || car.claimedBy !== null) {
+        // Car left, or someone grabbed it another way: drop the order.
+        this.orders.shift();
         this.releaseDest(o);
-        if (car) car.queuedBy = null;
         continue;
       }
-      v.current = o;
+      let valet: Valet | null = null;
+      let best = Infinity;
+      for (const v of this.valets) {
+        if (v.state !== 'idle' && v.state !== 'returning') continue;
+        const d = Math.hypot(v.x - car.x, v.z - car.z);
+        if (d < best) { best = d; valet = v; }
+      }
+      if (!valet) return;
+      this.orders.shift();
+      valet.current = o;
+      car.queuedBy = valet.id;
       const isJob = car.state === 'waitingDropoff' || car.requested;
-      if (isJob) car.claimedBy = v.id;
-      v.path = [this.doorPoint(car)];
-      v.pathIdx = 0;
-      v.targetCar = car.id;
-      v.state = 'walking';
-      return true;
+      if (isJob) car.claimedBy = valet.id;
+      valet.path = [this.doorPoint(car)];
+      valet.pathIdx = 0;
+      valet.targetCar = car.id;
+      valet.state = 'walking';
     }
-    return false;
   }
 
-  /** After a job or a failed key: next order, else back to the desk (if enabled), else wait here. */
+  /** After a job or a failed key: free for the next order; head back to the desk after a short wait. */
   private afterJob(v: Valet) {
     v.targetCar = null;
     v.current = null;
-    if (this.startNextOrder(v)) return;
-    // Linger a moment in case another order comes in, then head back (see updateValet).
     v.state = 'idle';
     v.timer = this.cfg.valet.returnDelay;
+    this.dispatchOrders();
   }
 
   /** Preview (and validate) a drive from a drawn finger line. */
@@ -336,6 +350,8 @@ export class World {
   update(dt: number) {
     this.time += dt;
     this.updateSpawns(dt);
+    this.dispatchOrders();
+    this.updateCurbQueue();
     this.updateYield();
     for (const car of [...this.cars.values()]) this.updateCar(car, dt);
     for (const v of this.valets) this.updateValet(v, dt);
@@ -356,7 +372,9 @@ export class World {
       this.queue++;
       this.spawnTimer = Math.max(1, T.spawnInterval + this.rng.range(-T.spawnJitter, T.spawnJitter));
     }
-    while (this.queue > 0) {
+    // Pickups waiting for the curb go before new arrivals.
+    const pickupWaiting = [...this.cars.values()].some((c) => c.waitingForCurb);
+    while (this.queue > 0 && !pickupWaiting) {
       const spot = this.lot.dropoffCurbs.map((id) => this.lot.nodes[id]).find((n) => n.occupant === null);
       if (!spot) break;
       this.queue--;
@@ -388,7 +406,7 @@ export class World {
     const car: Car = {
       id: this.nextId++, paint, body, rack, x, z, heading, state: 'arriving', nodeId: -1, route: [], routeIdx: 0,
       reverseSegment: -1, destNode: -1, yieldTimer: 0, blockedBy: null, stayLeft: 0, requested: false, ticketId: null,
-      valetId: null, claimedBy: null, queuedBy: null, curbWait: 0, handoffLeft: 0,
+      valetId: null, claimedBy: null, queuedBy: null, waitingForCurb: false, curbWait: 0, handoffLeft: 0,
     };
     this.cars.set(car.id, car);
     return car;
@@ -495,6 +513,10 @@ export class World {
       car.curbWait = 0;
       return;
     }
+    if (node.kind === 'lane' && car.waitingForCurb) {
+      car.state = 'curbQueue'; // valet stays in the car
+      return;
+    }
     // driving → parked or handed off
     const valet = car.valetId !== null ? this.valets[car.valetId] : null;
     car.valetId = null;
@@ -558,7 +580,6 @@ export class World {
 
   private updateValet(v: Valet, dt: number) {
     const V = this.cfg.valet;
-    if ((v.state === 'idle' || v.state === 'returning') && v.orders.length) this.startNextOrder(v);
     if (v.state === 'idle' && V.autoReturnToDesk && Math.hypot(v.x - v.homeX, v.z - v.homeZ) > 0.5) {
       v.timer -= dt;
       if (v.timer <= 0) {
@@ -622,6 +643,17 @@ export class World {
 
   /** Queue mode: the valet is in the car, so drive straight to the ordered spot. */
   private autoDrive(car: Car, order: Order) {
+    if (order.toCurb) {
+      const spot = this.freeCurb(car, order.dest);
+      if (spot) this.driveTo(car, spot.id);
+      else {
+        // Every curb spot is busy: pull into the curb lane and wait for one to open.
+        const wait = this.lot.nodes[order.dest].neighbors.find((id) => this.lot.nodes[id].kind === 'lane');
+        if (wait === undefined || !this.driveTo(car, wait)) return;
+        car.waitingForCurb = true;
+      }
+      return;
+    }
     const dest = this.lot.nodes[order.dest];
     const nodes = this.canPark(car, dest) ? shortestPath(this.lot, car.nodeId, dest.id) : null;
     if (!nodes) {
@@ -631,6 +663,44 @@ export class World {
     }
     const plan: DrivePlan = { valid: true, destNode: dest.id, nodes, points: nodes.map((id) => ({ x: this.lot.nodes[id].x, z: this.lot.nodes[id].z })) };
     this.commitDrive(car, plan);
+  }
+
+  /** A free curb spot for this car: the preferred one if open, else the nearest open one. */
+  private freeCurb(car: Car, preferred: number): LotNode | null {
+    const open = this.lot.curbs.map((id) => this.lot.nodes[id]).filter((n) => n.occupant === null && n.reservedFor === null);
+    if (!open.length) return null;
+    const pref = open.find((n) => n.id === preferred);
+    if (pref) return pref;
+    return open.reduce((a, b) => (Math.hypot(a.x - car.x, a.z - car.z) <= Math.hypot(b.x - car.x, b.z - car.z) ? a : b));
+  }
+
+  /** Start driving a car (with its valet inside) to any node along lanes. */
+  private driveTo(car: Car, destId: number): boolean {
+    const nodes = shortestPath(this.lot, car.nodeId, destId);
+    if (!nodes) return false;
+    const start = this.lot.nodes[car.nodeId];
+    const dest = this.lot.nodes[destId];
+    if (start.occupant === car.id) start.occupant = null;
+    if (dest.kind !== 'lane') dest.occupant = car.id;
+    if (dest.reservedFor === car.id) dest.reservedFor = null;
+    car.destNode = destId;
+    car.route = nodes.slice(1).map((id) => ({ x: this.lot.nodes[id].x, z: this.lot.nodes[id].z }));
+    car.routeIdx = 0;
+    car.reverseSegment = start.kind === 'stall' ? 0 : -1;
+    car.state = 'driving';
+    car.yieldTimer = 0;
+    return true;
+  }
+
+  /** Cars waiting in the curb lane take spots as they open, oldest first. */
+  private updateCurbQueue() {
+    const waiting = [...this.cars.values()].filter((c) => c.state === 'curbQueue').sort((a, b) => a.id - b.id);
+    for (const car of waiting) {
+      const spot = this.freeCurb(car, -1);
+      if (!spot) return;
+      car.waitingForCurb = false;
+      this.driveTo(car, spot.id);
+    }
   }
 
   private tryKeys(v: Valet) {

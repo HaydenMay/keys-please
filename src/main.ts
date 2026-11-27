@@ -42,7 +42,7 @@ function toggleGui() {
   else gui.hide();
 }
 const ranges: Record<string, [number, number, number]> = {
-  timeScale: [0.1, 4, 0.1], snapRadius: [0.5, 8, 0.1], destSnapRadius: [1, 10, 0.1], pickRadius: [1, 6, 0.1], destTapRadius: [1, 8, 0.1], queueLimit: [1, 6, 1], minDragDistance: [0, 4, 0.1],
+  timeScale: [0.1, 4, 0.1], snapRadius: [0.5, 8, 0.1], destSnapRadius: [1, 10, 0.1], pickRadius: [1, 6, 0.1], destTapRadius: [1, 8, 0.1], maxPendingOrders: [1, 15, 1], minDragDistance: [0, 4, 0.1],
   count: [1, 5, 1], walkSpeed: [1, 15, 0.5], boardTime: [0, 3, 0.1], keyFailTime: [0, 5, 0.1], returnDelay: [0, 15, 0.5],
   driveSpeed: [2, 25, 0.5], reverseSpeed: [1, 15, 0.5], turnRate: [1, 30, 0.5], yieldDistance: [1, 12, 0.5], yieldTimeout: [0.5, 10, 0.5], arrivalSpeed: [2, 25, 0.5],
   spawnInterval: [2, 40, 0.5], spawnJitter: [0, 15, 0.5], stayMin: [5, 300, 5], stayMax: [5, 600, 5], startParked: [0, 30, 1],

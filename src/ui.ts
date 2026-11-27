@@ -81,16 +81,22 @@ export class Hud {
       el.style.borderColor = color;
       el.style.color = outline ? color : '#fff';
     };
+    // Orders a valet is on: valet color. Orders waiting for a free valet: numbered in line order.
     for (const v of w.valets) {
+      if (!v.current || v.state === 'inCar') continue;
       const color = view.valetColor(v.id);
-      const orders = [...(v.current && v.state !== 'inCar' ? [v.current] : []), ...v.orders];
-      orders.forEach((o, i) => {
-        const car = w.cars.get(o.carId);
-        if (car) badge(car.x, car.z, String(i + 1), color, false);
-        const d = w.lot.nodes[o.dest];
-        badge(d.x, d.z, String(i + 1), color, true);
-      });
+      const car = w.cars.get(v.current.carId);
+      if (car) badge(car.x, car.z, '→', color, false);
+      const d = w.lot.nodes[v.current.dest];
+      badge(d.x, d.z, '→', color, true);
     }
+    const neutral = '#8a93a0';
+    w.orders.forEach((o, i) => {
+      const car = w.cars.get(o.carId);
+      if (car) badge(car.x, car.z, String(i + 1), neutral, false);
+      const d = w.lot.nodes[o.dest];
+      badge(d.x, d.z, String(i + 1), neutral, true);
+    });
     for (let i = used; i < this.badgePool.length; i++) this.badgePool[i].style.display = 'none';
   }
 

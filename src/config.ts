@@ -33,8 +33,8 @@ export const defaultConfig = {
     /** When a valet runs out of orders, walk back to the desk after waiting returnDelay seconds. */
     autoReturnToDesk: true,
     returnDelay: 2.5,
-    /** Max queued orders per valet in queue mode. */
-    queueLimit: 3,
+    /** Queue mode: max orders waiting for a free valet. */
+    maxPendingOrders: 6,
   },
   car: {
     driveSpeed: 9,
@@ -68,7 +68,7 @@ export const defaultConfig = {
     sideLaneWidth: 7, // (restart)
     curbSpots: 3, // (restart)
     /** Curb spots (from the exit end) that arrivals never use, so pickups always have somewhere to go. */
-    pickupOnlySpots: 1, // (restart)
+    pickupOnlySpots: 0, // (restart)
   },
   view: {
     /** In a portrait window, rotate the lot so its long side runs vertically. */

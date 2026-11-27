@@ -9,8 +9,9 @@ Play: https://haydenmay.github.io/keys-please/ (deployed automatically from `mai
 ## How to play the sandbox
 
 - **Drop-off:** a car with a yellow diamond is waiting at the curb. It needs to go to an empty stall.
-- **Pickup:** a ticket appears in the Pickups panel. Find that car and send it to a curb spot. The green spot is kept free for pickups. If you pick the wrong car, the keys don't fit.
-- **Queue mode (default):** tap a car, then tap where it should go. That's one numbered order in the valet's color, and the valet runs over and drives it there. You can line up to 3 orders per valet. Tap a numbered car to cancel its order, or tap a valet first to give the order to them. After a job, valets wait a couple of seconds, then walk back to the desk if nothing's queued.
+- **Pickup:** a ticket appears in the Pickups panel. Find that car and send it to the curb. If you pick the wrong car, the keys don't fit.
+- **Queue mode (default):** tap a car, then tap where it should go. That adds a numbered order to one shared list, and the nearest free valet takes the next order. A car being worked on shows an arrow badge in that valet's color. Tap a queued car to cancel its order. After a job, valets wait a couple of seconds, then walk back to the desk if nothing's queued.
+- **Curb:** any curb spot works for a pickup, even a busy one. If every spot is taken, the valet pulls into the curb lane and waits for one to open. Waiting pickups get the curb before new arrivals do.
 - **Other valet modes** (top button): **Tap** sends the nearest valet but you drag the car yourself; **Draw** means you drag everything.
 - **Tune** opens a panel with every number and color. Settings marked ↻ need a restart. **Save tuning** keeps your settings on that device.
 - `?seed=123` in the URL replays a specific shift. Space pauses.

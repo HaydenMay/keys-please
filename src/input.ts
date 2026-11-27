@@ -106,13 +106,13 @@ export class InputController {
 
     // Tap
     const p = g.start;
+    if (C.valetMode === 'queue') {
+      this.queueTap(p);
+      return;
+    }
     const tappedValet = w.valetAt(p, C.pickRadius);
     if (tappedValet) {
       this.view().selectedValet = this.view().selectedValet === tappedValet.id ? null : tappedValet.id;
-      return;
-    }
-    if (C.valetMode === 'queue') {
-      this.queueTap(p);
       return;
     }
     const car = w.carAt(p, C.pickRadius, (c) => c.state === 'parked' || c.state === 'waitingDropoff');
@@ -143,7 +143,7 @@ export class InputController {
     const C = this.cfg.controls;
     const car = w.carAt(p, C.pickRadius, (c) => c.state === 'parked' || c.state === 'waitingDropoff');
     if (car) {
-      if (car.queuedBy !== null) {
+      if (w.isQueued(car)) {
         const ok = w.cancelOrder(car);
         this.toast(ok ? 'Order removed' : 'Too late — already moving', 'info', car);
         view.pendingCar = null;
@@ -159,7 +159,6 @@ export class InputController {
     const pending = view.pendingCar !== null ? w.cars.get(view.pendingCar) : undefined;
     if (!pending || !(pending.state === 'parked' || pending.state === 'waitingDropoff')) {
       view.pendingCar = null;
-      view.selectedValet = null;
       return;
     }
     const dest = nearestNode(w.lot, p, C.destTapRadius, (n) => w.canQueueDest(pending, n));
@@ -167,26 +166,12 @@ export class InputController {
       this.toast(pending.state === 'waitingDropoff' ? 'Tap an empty stall' : 'Tap an empty stall or curb spot', 'info', p);
       return;
     }
-    const sel = view.selectedValet !== null ? w.valets[view.selectedValet] : null;
-    const valet = sel ?? this.leastBusyValet(pending);
-    const res = w.queueOrder(valet, pending, dest);
+    const res = w.queueOrder(pending, dest);
     if (!res.ok) {
       this.toast(res.reason ?? 'Nope', 'bad', p);
       return;
     }
     view.pendingCar = null;
-  }
-
-  private leastBusyValet(car: Point) {
-    const w = this.world();
-    let best = w.valets[0];
-    let bestScore = Infinity;
-    for (const v of w.valets) {
-      const load = v.orders.length + (v.current || v.state === 'inCar' || v.state === 'walking' ? 1 : 0);
-      const score = load * 1000 + Math.hypot(v.x - car.x, v.z - car.z);
-      if (score < bestScore) { bestScore = score; best = v; }
-    }
-    return best;
   }
 
   private cancel = (e: PointerEvent) => {

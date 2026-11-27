@@ -383,18 +383,23 @@ export class LotRenderer {
 
     // Queued orders: faint route from each queued car to its spot, in its valet's color.
     const live = new Set<number>();
-    for (const valet of w.valets) {
-      const orders = [...(valet.current && valet.state !== 'inCar' ? [valet.current] : []), ...valet.orders];
-      for (const o of orders) {
+    const neutral = this.cfg.colors.pendingRing;
+    const all: { o: { carId: number; dest: number }; color: string }[] = [
+      ...w.valets.filter((v) => v.current && v.state !== 'inCar').map((v) => ({ o: v.current!, color: this.valetColor(v.id) })),
+      ...w.orders.map((o) => ({ o, color: neutral })),
+    ];
+    {
+      for (const { o, color } of all) {
         const car = w.cars.get(o.carId);
         if (!car) continue;
         live.add(o.carId);
         let m = this.orderLines.get(o.carId);
         if (!m) {
-          m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: this.valetColor(valet.id), transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+          m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
           this.orderLines.set(o.carId, m);
           this.dynamicGroup.add(m);
         }
+        (m.material as THREE.MeshBasicMaterial).color.set(color);
         const nodes = shortestPath(w.lot, car.nodeId, o.dest);
         m.geometry.dispose();
         m.geometry = nodes ? ribbonGeometry(smoothCorners(nodes.map((id) => ({ x: w.lot.nodes[id].x, z: w.lot.nodes[id].z })), 2.2), 0.45, 0.065) : new THREE.BufferGeometry();
