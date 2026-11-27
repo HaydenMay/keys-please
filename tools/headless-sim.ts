@@ -1,70 +1,83 @@
-// Runs shifts with a simple bot player and no rendering, to catch stuck states and
-// sanity-check the numbers. Usage: npm run sim -- [shifts] [secondsPerShift]
+// Runs shifts with simple bot players and no rendering, to catch stuck states and
+// check whether smart parking actually beats careless parking.
+// Usage: npm run sim -- [shifts] [secondsPerShift] [spawnInterval]
 
 import { defaultConfig } from '../src/config';
-import { World } from '../src/sim/world';
+import { shortestPath } from '../src/sim/graph';
+import { World, type Car } from '../src/sim/world';
 
 declare const process: { argv: string[]; exitCode?: number };
 
 const shifts = Number(process.argv[2] ?? 20);
 const seconds = Number(process.argv[3] ?? 300);
+const spawnOverride = process.argv[4] ? Number(process.argv[4]) : null;
 const dt = 1 / 30;
 
-let totals = { tips: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0, stuck: 0 };
+type Strategy = 'random' | 'smart';
 
-for (let s = 0; s < shifts; s++) {
-  const cfg = structuredClone(defaultConfig);
-  const world = new World(cfg, 1000 + s);
-  const stuckTimers = new Map<number, number>();
+function run(strategy: Strategy) {
+  const totals = { earnings: 0, tips: 0, fees: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0, stuck: 0 };
+  for (let s = 0; s < shifts; s++) {
+    const cfg = structuredClone(defaultConfig);
+    if (spawnOverride) cfg.traffic.spawnInterval = spawnOverride;
+    const world = new World(cfg, 1000 + s);
+    const stuckTimers = new Map<number, number>();
+    let r = 12345 + s;
+    const rand = () => (r = (r * 1103515245 + 12345) % 2147483648) / 2147483648;
 
-  for (let t = 0; t < seconds; t += dt) {
-    // Even shifts: queue-mode bot (tap car, tap spot). Odd shifts: assign + drive bot.
-    if (s % 2 === 0) {
+    // Driving distance from the curb lane to each stall, to rank stalls near → far.
+    const entryLane = world.lot.nodes[world.lot.curbs[0]].neighbors[0];
+    const dist = new Map<number, number>();
+    for (const id of world.lot.stalls) {
+      const path = shortestPath(world.lot, entryLane, id)!;
+      let d = 0;
+      for (let i = 1; i < path.length; i++) {
+        const a = world.lot.nodes[path[i - 1]];
+        const b = world.lot.nodes[path[i]];
+        d += Math.hypot(b.x - a.x, b.z - a.z);
+      }
+      dist.set(id, d);
+    }
+    const chooseStall = (car: Car) => {
+      const free = world.lot.stalls.map((id) => world.lot.nodes[id]).filter((n) => world.canQueueDest(car, n));
+      if (!free.length) return undefined;
+      if (strategy === 'random') return free[Math.floor(rand() * free.length)];
+      // Smart: short visits near the curb, long visits deep in the lot.
+      const st = world.storeOf(car);
+      const longStay = (st.stayMin + st.stayMax) / 2 > 90;
+      free.sort((a, b) => (dist.get(a.id)! - dist.get(b.id)!) * (longStay ? -1 : 1));
+      return free[0];
+    };
+
+    for (let t = 0; t < seconds; t += dt) {
       for (const car of world.cars.values()) {
         if (world.isQueued(car) || car.claimedBy !== null) continue;
-        if (!(car.state === 'waitingDropoff' || (car.state === 'parked' && car.requested))) continue;
-        const targets = car.requested ? world.lot.curbs : world.lot.stalls;
-        const dest = targets.map((id) => world.lot.nodes[id]).find((n) => world.canQueueDest(car, n));
-        if (dest) world.queueOrder(car, dest);
+        if (car.state === 'waitingDropoff') {
+          const dest = chooseStall(car);
+          if (dest) world.queueOrder(car, dest);
+        } else if (car.state === 'parked' && car.requested) {
+          world.queueOrder(car, world.lot.nodes[world.lot.curbs[0]]);
+        }
       }
-    } else {
-    // Bot: send free valets to curb drop-offs first, then requested pickups.
-    for (const v of world.valets) {
-      if (v.state !== 'idle') continue;
-      const jobs = [...world.cars.values()].filter(
-        (c) => c.claimedBy === null && (c.state === 'waitingDropoff' || (c.state === 'parked' && c.requested)),
-      );
-      const job = jobs[0];
-      if (job) world.assignValet(v, job);
-    }
-    // Bot: drive any car waiting for orders to the nearest legal spot.
-    for (const car of world.cars.values()) {
-      if (car.state !== 'awaitingDrive') continue;
-      const targets = car.requested ? world.lot.curbs : world.lot.stalls;
-      const free = targets.map((id) => world.lot.nodes[id]).filter((n) => n.occupant === null && n.id !== car.nodeId);
-      if (!free.length) continue;
-      const dest = free[Math.floor(free.length / 2)];
-      const plan = world.planDrive(car, [{ x: car.x, z: car.z }, { x: dest.x, z: dest.z }]);
-      if (plan.valid) world.commitDrive(car, plan);
-    }
-    }
-    world.update(dt);
-
-    // Detect cars that stop moving while in a moving state.
-    for (const car of world.cars.values()) {
-      if (car.state === 'driving' || car.state === 'arriving' || car.state === 'leaving') {
-        const key = car.id;
-        const prev = stuckTimers.get(key) ?? 0;
-        stuckTimers.set(key, car.blockedBy !== null ? prev + dt : 0);
-        if (prev > 15) { totals.stuck++; stuckTimers.set(key, -1e9); }
+      world.update(dt);
+      for (const car of world.cars.values()) {
+        if (car.state === 'driving' || car.state === 'arriving' || car.state === 'leaving') {
+          const prev = stuckTimers.get(car.id) ?? 0;
+          stuckTimers.set(car.id, car.blockedBy !== null ? prev + dt : 0);
+          if (prev > 15) { totals.stuck++; stuckTimers.set(car.id, -1e9); }
+        }
       }
     }
+    if (world.orders.length && world.valets.some((v) => v.state === 'idle')) totals.stuck++;
+    for (const k of Object.keys(world.stats) as (keyof typeof world.stats)[]) totals[k] += world.stats[k];
   }
-  if (world.orders.length && world.valets.some((v) => v.state === 'idle')) { totals.stuck++; console.log('valet idle with orders', s); }
-  for (const k of Object.keys(world.stats) as (keyof typeof world.stats)[]) totals[k] += world.stats[k];
+  const per = (n: number) => (n / shifts).toFixed(1);
+  console.log(
+    `${strategy.padEnd(6)} earned/shift $${per(totals.earnings)} (tips $${per(totals.tips)} + parking $${per(totals.fees)})  served ${per(totals.served)}  lost ${per(totals.lost)}  angry ${per(totals.angry)}  stuck ${totals.stuck}`,
+  );
+  return totals.stuck;
 }
 
-const per = (n: number) => (n / shifts).toFixed(1);
-console.log(`${shifts} shifts × ${seconds}s (bot player)`);
-console.log(`served/shift ${per(totals.served)}  tips/shift $${per(totals.tips)}  lost/shift ${per(totals.lost)}  angry/shift ${per(totals.angry)}  wrongKeys ${totals.wrongKeys}  stuck cars ${totals.stuck}`);
-if (totals.stuck > 0) process.exitCode = 1;
+console.log(`${shifts} shifts × ${seconds}s, queue-mode bot${spawnOverride ? `, spawn every ${spawnOverride}s` : ''}`);
+const stuck = run('random') + run('smart');
+if (stuck > 0) process.exitCode = 1;

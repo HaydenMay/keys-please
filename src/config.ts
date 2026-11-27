@@ -48,8 +48,6 @@ export const defaultConfig = {
     /** Average seconds between arrivals. */
     spawnInterval: 10,
     spawnJitter: 4,
-    stayMin: 25,
-    stayMax: 70,
     startParked: 4, // (restart)
   },
   customers: {
@@ -61,7 +59,7 @@ export const defaultConfig = {
   },
   lot: {
     stallsPerRow: 8, // (restart)
-    rowPairs: 1, // (restart) each pair = two stall rows sharing one aisle
+    rowPairs: 2, // (restart) each pair = two stall rows sharing one aisle
     stallWidth: 3, // (restart)
     stallDepth: 5.5, // (restart)
     aisleWidth: 7, // (restart)
@@ -76,6 +74,10 @@ export const defaultConfig = {
     padding: 1.5,
     /** Debug: ring the car a pickup ticket belongs to (turn off to test identification). */
     highlightRequestedCars: false,
+    /** Small store-colored dot on parked cars' roofs (off = you have to remember). */
+    storeDotOnParked: true,
+    /** Store label + stay estimate over cars waiting at the curb. */
+    storeLabelAtCurb: true,
     showGraph: false,
   },
   colors: {
@@ -99,6 +101,20 @@ export const defaultConfig = {
     waitingMarker: '#ffd166',
     requestedRing: '#ff4fd8',
     pendingRing: '#ffffff',
+  },
+  /**
+   * Why customers come. Stay times are in seconds; the ticket shows the min–max range as the estimate.
+   * weight = how often this store's customers show up. tipMultiplier scales their tips.
+   */
+  stores: {
+    Gym: { stayMin: 20, stayMax: 40, weight: 3, tipMultiplier: 0.7, color: '#4fc3f7' },
+    Diner: { stayMin: 45, stayMax: 80, weight: 3, tipMultiplier: 1, color: '#ffb74d' },
+    Steakhouse: { stayMin: 110, stayMax: 170, weight: 2, tipMultiplier: 1.6, color: '#e57373' },
+    Movie: { stayMin: 140, stayMax: 200, weight: 2, tipMultiplier: 1.1, color: '#ba68c8' },
+  } as Record<string, { stayMin: number; stayMax: number; weight: number; tipMultiplier: number; color: string }>,
+  economy: {
+    /** Parking fee in $ per minute a car spends parked. */
+    parkingRatePerMinute: 2,
   },
   /** One color per valet; their order badges use the same color. */
   valetColors: {

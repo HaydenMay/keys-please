@@ -13,6 +13,7 @@ export class Hud {
   private ticketEls = new Map<number, HTMLElement>();
   private badgeLayer = document.getElementById('badges')!;
   private badgePool: HTMLElement[] = [];
+  private labelPool: HTMLElement[] = [];
   paused = false;
 
   constructor(private cfg: Config, private world: () => World, private view: () => LotRenderer, handlers: { restart: () => void; tune: () => void }) {
@@ -98,6 +99,26 @@ export class Hud {
       badge(d.x, d.z, String(i + 1), neutral, true);
     });
     for (let i = used; i < this.badgePool.length; i++) this.badgePool[i].style.display = 'none';
+
+    // Reason-for-visit labels on cars at the curb (the drop-off ticket).
+    let usedL = 0;
+    if (this.cfg.view.storeLabelAtCurb) {
+      for (const car of w.cars.values()) {
+        const atCurb = car.state === 'waitingDropoff' || (car.state === 'awaitingDrive' && !car.requested) || car.state === 'arriving';
+        if (!atCurb) continue;
+        let el = this.labelPool[usedL];
+        if (!el) { el = document.createElement('div'); el.className = 'store-label'; this.badgeLayer.appendChild(el); this.labelPool.push(el); }
+        usedL++;
+        const st = w.storeOf(car);
+        const p = view.worldToScreen({ x: car.x, z: car.z });
+        el.style.display = 'block';
+        el.style.left = `${p.x}px`;
+        el.style.top = `${p.y - 26}px`;
+        el.style.borderColor = st.color;
+        el.innerHTML = `<b style="color:${st.color}">${car.store}</b> <span>${formatStay(st.stayMin, st.stayMax)}</span>`;
+      }
+    }
+    for (let i = usedL; i < this.labelPool.length; i++) this.labelPool[i].style.display = 'none';
   }
 
   update() {
@@ -106,7 +127,7 @@ export class Hud {
     const s = w.stats;
     const free = w.lot.stalls.filter((id) => w.lot.nodes[id].occupant === null).length;
     this.stats.innerHTML =
-      `<b>$${s.tips}</b> tips · ${s.served} served · ${s.lost} lost · ${s.wrongKeys} wrong keys` +
+      `<b>$${s.earnings}</b> <span class="dim">($${s.tips} tips + $${s.fees} parking)</span> · ${s.served} served · ${s.lost} lost · ${s.wrongKeys} wrong keys` +
       ` · ${free}/${w.lot.stalls.length} stalls free${w.queue ? ` · <span class="warn">${w.queue} waiting on the street</span>` : ''}` +
       ` · <span class="dim">seed ${w.seed}</span>`;
 
@@ -119,8 +140,11 @@ export class Hud {
       if (!el) {
         el = document.createElement('div');
         el.className = 'ticket';
-        el.innerHTML = `<div class="t-label">PICKUP</div><div class="t-desc"></div><div class="t-bar"><i></i></div>`;
+        el.innerHTML = `<div class="t-label">PICKUP · <span class="t-store"></span></div><div class="t-desc"></div><div class="t-bar"><i></i></div>`;
         el.querySelector('.t-desc')!.textContent = t.description;
+        const storeEl = el.querySelector('.t-store') as HTMLElement;
+        storeEl.textContent = t.store.toUpperCase();
+        storeEl.style.color = w.cfg.stores[t.store]?.color ?? '';
         this.tickets.appendChild(el);
         this.ticketEls.set(t.id, el);
       }
@@ -138,4 +162,12 @@ export class Hud {
       this.tickets.querySelector('.empty')?.remove();
     }
   }
+}
+
+/** "~20–40s" or "~2–3 min": an estimate, never an exact timer. */
+export function formatStay(min: number, max: number): string {
+  if (max < 90) return `~${Math.round(min / 5) * 5}–${Math.round(max / 5) * 5}s`;
+  const a = Math.max(1, Math.round(min / 60));
+  const b = Math.max(a, Math.round(max / 60));
+  return a === b ? `~${a} min` : `~${a}–${b} min`;
 }

@@ -13,6 +13,10 @@ export interface Car {
   paint: string;
   body: BodyType;
   rack: boolean;
+  /** Reason for visit (a key of cfg.stores). */
+  store: string;
+  /** Seconds spent parked, for the parking fee. */
+  parkedTime: number;
   x: number;
   z: number;
   heading: number;
@@ -65,6 +69,7 @@ export interface Ticket {
   id: number;
   carId: number;
   description: string;
+  store: string;
   age: number;
   patience: number;
   angry: boolean;
@@ -99,7 +104,7 @@ export class World {
   readonly tickets = new Map<number, Ticket>();
   /** Shared queue-mode order list, oldest first. */
   readonly orders: Order[] = [];
-  readonly stats = { tips: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0 };
+  readonly stats = { earnings: 0, tips: 0, fees: 0, served: 0, lost: 0, wrongKeys: 0, angry: 0 };
   time = 0;
   queue = 0;
   readonly seed: number;
@@ -131,7 +136,8 @@ export class World {
       const car = this.makeCar(stall.x, stall.z, stall.heading);
       car.state = 'parked';
       car.nodeId = stall.id;
-      car.stayLeft = this.rng.range(cfg.traffic.stayMin * 0.5, cfg.traffic.stayMax);
+      const st = this.storeOf(car);
+      car.stayLeft = this.rng.range(st.stayMin * 0.3, st.stayMax);
       stall.occupant = car.id;
     }
   }
@@ -389,6 +395,18 @@ export class World {
     }
   }
 
+  storeOf(car: Car) {
+    return this.cfg.stores[car.store] ?? Object.values(this.cfg.stores)[0];
+  }
+
+  private pickStore(): string {
+    const entries = Object.entries(this.cfg.stores);
+    const total = entries.reduce((a, [, s]) => a + Math.max(0, s.weight), 0);
+    let r = this.rng.next() * total;
+    for (const [name, s] of entries) { r -= Math.max(0, s.weight); if (r <= 0) return name; }
+    return entries[0][0];
+  }
+
   private makeCar(x: number, z: number, heading: number): Car {
     const paints = Object.keys(this.cfg.carPaints);
     const bodies = Object.keys(bodyTypes) as BodyType[];
@@ -404,7 +422,7 @@ export class World {
       if (!clash) break;
     }
     const car: Car = {
-      id: this.nextId++, paint, body, rack, x, z, heading, state: 'arriving', nodeId: -1, route: [], routeIdx: 0,
+      id: this.nextId++, paint, body, rack, store: this.pickStore(), parkedTime: 0, x, z, heading, state: 'arriving', nodeId: -1, route: [], routeIdx: 0,
       reverseSegment: -1, destNode: -1, yieldTimer: 0, blockedBy: null, stayLeft: 0, requested: false, ticketId: null,
       valetId: null, claimedBy: null, queuedBy: null, waitingForCurb: false, curbWait: 0, handoffLeft: 0,
     };
@@ -442,6 +460,7 @@ export class World {
     const C = this.cfg.car;
     switch (car.state) {
       case 'parked': {
+        car.parkedTime += dt;
         if (!car.requested) {
           car.stayLeft -= dt;
           if (car.stayLeft <= 0) this.requestPickup(car);
@@ -524,7 +543,7 @@ export class World {
     if (valet) this.exitCar(valet, car);
     if (node.kind === 'stall') {
       car.state = 'parked';
-      if (car.stayLeft <= 0 && !car.requested) car.stayLeft = this.rng.range(this.cfg.traffic.stayMin, this.cfg.traffic.stayMax);
+      if (car.stayLeft <= 0 && !car.requested) { const st = this.storeOf(car); car.stayLeft = this.rng.range(st.stayMin, st.stayMax); }
     } else if (node.kind === 'curb' && car.requested) {
       car.state = 'handoff';
       car.handoffLeft = this.cfg.customers.handoffTime;
@@ -534,7 +553,7 @@ export class World {
 
   private requestPickup(car: Car) {
     car.requested = true;
-    const t: Ticket = { id: this.nextId++, carId: car.id, description: describeCar(car), age: 0, patience: this.cfg.customers.pickupPatience, angry: false };
+    const t: Ticket = { id: this.nextId++, carId: car.id, description: describeCar(car), store: car.store, age: 0, patience: this.cfg.customers.pickupPatience, angry: false };
     car.ticketId = t.id;
     this.tickets.set(t.id, t);
   }
@@ -544,13 +563,18 @@ export class World {
     let tip = 0;
     if (t) {
       const K = this.cfg.customers;
-      tip = t.angry ? 0 : Math.round(K.minTip + (K.maxTip - K.minTip) * Math.max(0, 1 - t.age / t.patience));
+      const base = K.minTip + (K.maxTip - K.minTip) * Math.max(0, 1 - t.age / t.patience);
+      tip = t.angry ? 0 : Math.round(base * this.storeOf(car).tipMultiplier);
       this.tickets.delete(t.id);
     }
     car.ticketId = null;
+    const fee = Math.round((car.parkedTime / 60) * this.cfg.economy.parkingRatePerMinute);
     this.stats.tips += tip;
+    this.stats.fees += fee;
+    this.stats.earnings += tip + fee;
     this.stats.served++;
-    this.emit({ type: 'toast', text: tip > 0 ? `+$${tip} tip` : 'No tip', tone: tip > 0 ? 'good' : 'bad', x: car.x, z: car.z });
+    const text = tip > 0 ? `+$${tip + fee} ($${tip} tip + $${fee} parking)` : `+$${fee} parking, no tip`;
+    this.emit({ type: 'toast', text, tone: tip > 0 ? 'good' : 'bad', x: car.x, z: car.z });
   }
 
   private sendToExit(car: Car) {

@@ -9,6 +9,7 @@ interface CarView {
   awaitRing: THREE.Mesh;
   marker: THREE.Mesh;
   requestedRing: THREE.Mesh;
+  storeDot: THREE.Mesh;
 }
 
 interface ValetView {
@@ -277,7 +278,11 @@ export class LotRenderer {
     requestedRing.position.y = 0.04;
     const marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.55), new THREE.MeshBasicMaterial({ color: this.cfg.colors.waitingMarker }));
     marker.position.y = 3.2;
-    const view: CarView = { group, awaitRing, marker, requestedRing };
+    const storeColor = this.cfg.stores[car.store]?.color ?? '#ffffff';
+    const storeDot = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 20), new THREE.MeshBasicMaterial({ color: storeColor }));
+    storeDot.position.set(spec.cabinOffset, spec.height + 0.15 + spec.cabinHeight + (car.rack ? 0.3 : 0.06), 0);
+    group.add(storeDot);
+    const view: CarView = { group, awaitRing, marker, requestedRing, storeDot };
     this.dynamicGroup.add(group, awaitRing, requestedRing, marker);
     return view;
   }
@@ -330,6 +335,7 @@ export class LotRenderer {
         v.awaitRing.scale.set(s, s, s);
         v.awaitRing.position.set(car.x, 0.05, car.z);
       }
+      v.storeDot.visible = this.cfg.view.storeDotOnParked && (car.state === 'parked' || car.state === 'curbQueue' || car.state === 'driving');
       v.requestedRing.visible = this.cfg.view.highlightRequestedCars && car.requested && car.state === 'parked';
       v.requestedRing.position.set(car.x, 0.04, car.z);
       v.marker.visible = car.state === 'waitingDropoff' && car.claimedBy === null;
