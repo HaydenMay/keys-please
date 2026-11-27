@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Keys Please — Sandbox</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="topbar">
+        <div id="stats"></div>
+        <div id="buttons">
+          <button id="mode-btn"></button>
+          <button id="pause-btn">❚❚</button>
+          <button id="restart-btn">New shift</button>
+          <button id="tune-btn">Tune</button>
+          <button id="help-btn">?</button>
+        </div>
+      </div>
+      <div id="main">
+        <div id="stage"></div>
+        <aside id="side">
+          <div class="side-title">Pickups</div>
+          <div id="tickets"></div>
+        </aside>
+      </div>
+    </div>
+    <div id="toasts"></div>
+    <div id="help">
+      <div class="card">
+        <h2>Keys Please — sandbox</h2>
+        <p><b>Drop-off:</b> a car with a yellow diamond is waiting at the curb. Send a valet to it, then drag from the car (blue ring) to an empty stall.</p>
+        <p><b>Pickup:</b> a ticket appears on the right. Find that car, send a valet, then drag it to a free curb spot (the green one is kept free for pickups). Wrong car = the keys don't fit.</p>
+        <p><b>Valets:</b> in <i>Draw</i> mode, drag from a valet to a car. In <i>Tap</i> mode, just tap the car. Toggle with the button up top.</p>
+        <p class="dim">Tune lets you change every number and color. Space pauses. Tap to close.</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
