@@ -14,6 +14,8 @@ export interface LotNode {
   heading: number;
   /** Car id occupying or reserved for this spot. */
   occupant: number | null;
+  /** Car id a queued order has reserved this spot for. */
+  reservedFor: number | null;
   neighbors: number[];
 }
 
@@ -42,7 +44,7 @@ export function buildLot(cfg: Config): LotLayout {
   const nodes: LotNode[] = [];
   const add = (x: number, z: number, kind: NodeKind, heading = 0): number => {
     const id = nodes.length;
-    nodes.push({ id, x, z, kind, heading, occupant: null, neighbors: [] });
+    nodes.push({ id, x, z, kind, heading, occupant: null, reservedFor: null, neighbors: [] });
     return id;
   };
   const link = (a: number, b: number) => {

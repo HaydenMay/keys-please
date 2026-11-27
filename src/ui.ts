@@ -11,11 +11,15 @@ export class Hud {
   private modeBtn = document.getElementById('mode-btn') as HTMLButtonElement;
   private pauseBtn = document.getElementById('pause-btn') as HTMLButtonElement;
   private ticketEls = new Map<number, HTMLElement>();
+  private badgeLayer = document.getElementById('badges')!;
+  private badgePool: HTMLElement[] = [];
   paused = false;
 
   constructor(private cfg: Config, private world: () => World, private view: () => LotRenderer, handlers: { restart: () => void; tune: () => void }) {
     this.modeBtn.addEventListener('click', () => {
-      cfg.controls.valetMode = cfg.controls.valetMode === 'draw' ? 'tap' : 'draw';
+      const order = ['queue', 'tap', 'draw'] as const;
+      cfg.controls.valetMode = order[(order.indexOf(cfg.controls.valetMode) + 1) % order.length];
+      this.view().pendingCar = null;
       this.refreshMode();
     });
     this.pauseBtn.addEventListener('click', () => this.togglePause());
@@ -34,7 +38,8 @@ export class Hud {
   }
 
   refreshMode() {
-    this.modeBtn.textContent = this.cfg.controls.valetMode === 'draw' ? 'Valets: Draw' : 'Valets: Tap';
+    const names = { queue: 'Valets: Queue', tap: 'Valets: Tap', draw: 'Valets: Draw' } as const;
+    this.modeBtn.textContent = names[this.cfg.controls.valetMode];
   }
 
   reset() {
@@ -58,7 +63,39 @@ export class Hud {
     setTimeout(() => el.remove(), 1800);
   }
 
+  /** Numbered order badges on queued cars and their target spots. */
+  private updateBadges() {
+    const w = this.world();
+    const view = this.view();
+    let used = 0;
+    const badge = (x: number, z: number, text: string, color: string, outline: boolean) => {
+      let el = this.badgePool[used];
+      if (!el) { el = document.createElement('div'); el.className = 'badge'; this.badgeLayer.appendChild(el); this.badgePool.push(el); }
+      used++;
+      const s = view.worldToScreen({ x, z });
+      el.style.display = 'flex';
+      el.style.left = `${s.x}px`;
+      el.style.top = `${s.y}px`;
+      el.textContent = text;
+      el.style.background = outline ? 'rgba(20,22,26,0.75)' : color;
+      el.style.borderColor = color;
+      el.style.color = outline ? color : '#fff';
+    };
+    for (const v of w.valets) {
+      const color = view.valetColor(v.id);
+      const orders = [...(v.current && v.state !== 'inCar' ? [v.current] : []), ...v.orders];
+      orders.forEach((o, i) => {
+        const car = w.cars.get(o.carId);
+        if (car) badge(car.x, car.z, String(i + 1), color, false);
+        const d = w.lot.nodes[o.dest];
+        badge(d.x, d.z, String(i + 1), color, true);
+      });
+    }
+    for (let i = used; i < this.badgePool.length; i++) this.badgePool[i].style.display = 'none';
+  }
+
   update() {
+    this.updateBadges();
     const w = this.world();
     const s = w.stats;
     const free = w.lot.stalls.filter((id) => w.lot.nodes[id].occupant === null).length;

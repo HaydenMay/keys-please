@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { bodyTypes, type Config } from '../config';
-import type { Point } from '../sim/graph';
+import { shortestPath, type Point } from '../sim/graph';
 import type { Car, World } from '../sim/world';
 import { ribbonGeometry, smoothCorners } from './ribbon';
 
@@ -27,6 +27,8 @@ export class LotRenderer {
   private cars = new Map<number, CarView>();
   private valets: ValetView[] = [];
   private routeLines = new Map<number, THREE.Mesh>();
+  private orderLines = new Map<number, THREE.Mesh>();
+  private pendingRing: THREE.Mesh;
   private previewRaw: THREE.Mesh;
   private previewRoute: THREE.Mesh;
   private raycaster = new THREE.Raycaster();
@@ -34,6 +36,7 @@ export class LotRenderer {
   private clock = 0;
   portrait = false;
   selectedValet: number | null = null;
+  pendingCar: number | null = null;
 
   constructor(private container: HTMLElement, private world: World, private cfg: Config) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -62,6 +65,10 @@ export class LotRenderer {
     this.previewRaw.renderOrder = 10;
     this.previewRoute.renderOrder = 11;
     this.scene.add(this.previewRaw, this.previewRoute);
+    this.pendingRing = new THREE.Mesh(new THREE.RingGeometry(3.0, 3.35, 48), mat(cfg.colors.pendingRing, 0.9));
+    this.pendingRing.rotation.x = -Math.PI / 2;
+    this.pendingRing.renderOrder = 12;
+    this.scene.add(this.pendingRing);
 
     this.buildStatic();
     this.resize();
@@ -122,6 +129,9 @@ export class LotRenderer {
     for (const id of [...this.cars.keys()]) this.removeCar(id);
     for (const v of this.valets) this.dynamicGroup.remove(v.group, v.path);
     this.valets = [];
+    for (const m of this.orderLines.values()) this.dynamicGroup.remove(m);
+    this.orderLines.clear();
+    (this.pendingRing.material as THREE.MeshBasicMaterial).color.set(this.cfg.colors.pendingRing);
     (this.previewRaw.material as THREE.MeshBasicMaterial).color.set(this.cfg.colors.rawLine);
     this.resize();
   }
@@ -281,9 +291,14 @@ export class LotRenderer {
     if (r) { this.dynamicGroup.remove(r); this.routeLines.delete(id); }
   }
 
-  private makeValet(): ValetView {
+  valetColor(i: number): string {
+    const list = Object.values(this.cfg.valetColors);
+    return list.length ? list[i % list.length] : this.cfg.colors.valet;
+  }
+
+  private makeValet(i: number): ValetView {
     const group = new THREE.Group();
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 1.3, 16), new THREE.MeshStandardMaterial({ color: this.cfg.colors.valet }));
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 1.3, 16), new THREE.MeshStandardMaterial({ color: this.valetColor(i) }));
     torso.position.y = 0.8;
     torso.castShadow = true;
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 12), new THREE.MeshStandardMaterial({ color: '#e8c39e' }));
@@ -341,7 +356,7 @@ export class LotRenderer {
       }
     }
 
-    while (this.valets.length < w.valets.length) this.valets.push(this.makeValet());
+    while (this.valets.length < w.valets.length) this.valets.push(this.makeValet(this.valets.length));
     w.valets.forEach((valet, i) => {
       const v = this.valets[i];
       v.group.visible = valet.state !== 'inCar';
@@ -356,6 +371,36 @@ export class LotRenderer {
       if (valet.state === 'walking') v.path.geometry = ribbonGeometry([{ x: valet.x, z: valet.z }, ...valet.path.slice(valet.pathIdx)], 0.3, 0.08);
       else v.path.geometry = new THREE.BufferGeometry();
     });
+
+    // Pending (tapped, waiting for a destination) car
+    const pending = this.pendingCar !== null ? w.cars.get(this.pendingCar) : undefined;
+    this.pendingRing.visible = !!pending;
+    if (pending) {
+      const s = 1 + Math.sin(this.clock * 8) * 0.05;
+      this.pendingRing.scale.set(s, s, s);
+      this.pendingRing.position.set(pending.x, 0.12, pending.z);
+    }
+
+    // Queued orders: faint route from each queued car to its spot, in its valet's color.
+    const live = new Set<number>();
+    for (const valet of w.valets) {
+      const orders = [...(valet.current && valet.state !== 'inCar' ? [valet.current] : []), ...valet.orders];
+      for (const o of orders) {
+        const car = w.cars.get(o.carId);
+        if (!car) continue;
+        live.add(o.carId);
+        let m = this.orderLines.get(o.carId);
+        if (!m) {
+          m = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: this.valetColor(valet.id), transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+          this.orderLines.set(o.carId, m);
+          this.dynamicGroup.add(m);
+        }
+        const nodes = shortestPath(w.lot, car.nodeId, o.dest);
+        m.geometry.dispose();
+        m.geometry = nodes ? ribbonGeometry(smoothCorners(nodes.map((id) => ({ x: w.lot.nodes[id].x, z: w.lot.nodes[id].z })), 2.2), 0.45, 0.065) : new THREE.BufferGeometry();
+      }
+    }
+    for (const [id, m] of this.orderLines) if (!live.has(id)) { this.dynamicGroup.remove(m); m.geometry.dispose(); this.orderLines.delete(id); }
 
     this.renderer.render(this.scene, this.camera);
   }

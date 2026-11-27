@@ -8,8 +8,14 @@ export const defaultConfig = {
     timeScale: 1,
   },
   controls: {
-    /** 'draw' = drag a path from a valet to a car. 'tap' = tap a car and the nearest idle valet runs there. */
-    valetMode: 'draw' as 'draw' | 'tap',
+    /**
+     * 'queue' = tap a car, then tap where it goes: that's one numbered order. Tap a queued car to cancel it.
+     * 'draw'  = drag a path from a valet to a car, then drag the car to a spot.
+     * 'tap'   = tap a car (nearest free valet runs there), then drag the car to a spot.
+     */
+    valetMode: 'queue' as 'queue' | 'draw' | 'tap',
+    /** In queue mode, how close a tap must be to an empty stall or curb spot to pick it. */
+    destTapRadius: 3.2,
     /** How close (world units) a drawn line must pass to a lane node to snap onto it. */
     snapRadius: 3.2,
     /** How close the end of a drive line must be to a stall/curb spot to target it. */
@@ -24,7 +30,11 @@ export const defaultConfig = {
     walkSpeed: 5.5,
     boardTime: 0.5,
     keyFailTime: 1.4,
+    /** When a valet runs out of orders, walk back to the desk after waiting returnDelay seconds. */
     autoReturnToDesk: true,
+    returnDelay: 2.5,
+    /** Max queued orders per valet in queue mode. */
+    queueLimit: 3,
   },
   car: {
     driveSpeed: 9,
@@ -88,7 +98,16 @@ export const defaultConfig = {
     awaitingRing: '#5ad1ff',
     waitingMarker: '#ffd166',
     requestedRing: '#ff4fd8',
+    pendingRing: '#ffffff',
   },
+  /** One color per valet; their order badges use the same color. */
+  valetColors: {
+    valet1: '#d9473f',
+    valet2: '#3f8fd9',
+    valet3: '#e0a030',
+    valet4: '#9b59b6',
+    valet5: '#2eb872',
+  } as Record<string, string>,
   /** Car paint names shown on tickets, and their colors. */
   carPaints: {
     Red: '#d64541',

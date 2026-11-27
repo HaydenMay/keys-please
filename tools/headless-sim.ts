@@ -18,6 +18,19 @@ for (let s = 0; s < shifts; s++) {
   const stuckTimers = new Map<number, number>();
 
   for (let t = 0; t < seconds; t += dt) {
+    // Even shifts: queue-mode bot (tap car, tap spot). Odd shifts: assign + drive bot.
+    if (s % 2 === 0) {
+      for (const v of world.valets) {
+        if (v.orders.length + (v.current ? 1 : 0) >= cfg.valet.queueLimit) continue;
+        const car = [...world.cars.values()].find(
+          (c) => c.queuedBy === null && c.claimedBy === null && (c.state === 'waitingDropoff' || (c.state === 'parked' && c.requested)),
+        );
+        if (!car) break;
+        const targets = car.requested ? world.lot.curbs : world.lot.stalls;
+        const dest = targets.map((id) => world.lot.nodes[id]).find((n) => world.canQueueDest(car, n));
+        if (dest) world.queueOrder(v, car, dest);
+      }
+    } else {
     // Bot: send free valets to curb drop-offs first, then requested pickups.
     for (const v of world.valets) {
       if (v.state !== 'idle') continue;
@@ -37,6 +50,7 @@ for (let s = 0; s < shifts; s++) {
       const plan = world.planDrive(car, [{ x: car.x, z: car.z }, { x: dest.x, z: dest.z }]);
       if (plan.valid) world.commitDrive(car, plan);
     }
+    }
     world.update(dt);
 
     // Detect cars that stop moving while in a moving state.
@@ -49,6 +63,7 @@ for (let s = 0; s < shifts; s++) {
       }
     }
   }
+  for (const v of world.valets) if (v.state === 'idle' && v.orders.length) { totals.stuck++; console.log('valet idle with orders', s); }
   for (const k of Object.keys(world.stats) as (keyof typeof world.stats)[]) totals[k] += world.stats[k];
 }
 

@@ -1,5 +1,5 @@
 import type { Config } from './config';
-import type { Point } from './sim/graph';
+import { nearestNode, type Point } from './sim/graph';
 import type { Car, Valet, World } from './sim/world';
 import type { LotRenderer } from './render/renderer';
 
@@ -111,6 +111,10 @@ export class InputController {
       this.view().selectedValet = this.view().selectedValet === tappedValet.id ? null : tappedValet.id;
       return;
     }
+    if (C.valetMode === 'queue') {
+      this.queueTap(p);
+      return;
+    }
     const car = w.carAt(p, C.pickRadius, (c) => c.state === 'parked' || c.state === 'waitingDropoff');
     if (!car) {
       this.view().selectedValet = null;
@@ -131,6 +135,59 @@ export class InputController {
     if (!res.ok) this.toast(res.reason ?? 'Nope', 'bad', car);
     this.view().selectedValet = null;
   };
+
+  /** Queue mode: tap a car, then tap its spot. Tap a queued car to remove its order. */
+  private queueTap(p: Point) {
+    const w = this.world();
+    const view = this.view();
+    const C = this.cfg.controls;
+    const car = w.carAt(p, C.pickRadius, (c) => c.state === 'parked' || c.state === 'waitingDropoff');
+    if (car) {
+      if (car.queuedBy !== null) {
+        const ok = w.cancelOrder(car);
+        this.toast(ok ? 'Order removed' : 'Too late — already moving', 'info', car);
+        view.pendingCar = null;
+        return;
+      }
+      if (car.claimedBy !== null) {
+        this.toast('Another valet is on it', 'info', car);
+        return;
+      }
+      view.pendingCar = view.pendingCar === car.id ? null : car.id;
+      return;
+    }
+    const pending = view.pendingCar !== null ? w.cars.get(view.pendingCar) : undefined;
+    if (!pending || !(pending.state === 'parked' || pending.state === 'waitingDropoff')) {
+      view.pendingCar = null;
+      view.selectedValet = null;
+      return;
+    }
+    const dest = nearestNode(w.lot, p, C.destTapRadius, (n) => w.canQueueDest(pending, n));
+    if (!dest) {
+      this.toast(pending.state === 'waitingDropoff' ? 'Tap an empty stall' : 'Tap an empty stall or curb spot', 'info', p);
+      return;
+    }
+    const sel = view.selectedValet !== null ? w.valets[view.selectedValet] : null;
+    const valet = sel ?? this.leastBusyValet(pending);
+    const res = w.queueOrder(valet, pending, dest);
+    if (!res.ok) {
+      this.toast(res.reason ?? 'Nope', 'bad', p);
+      return;
+    }
+    view.pendingCar = null;
+  }
+
+  private leastBusyValet(car: Point) {
+    const w = this.world();
+    let best = w.valets[0];
+    let bestScore = Infinity;
+    for (const v of w.valets) {
+      const load = v.orders.length + (v.current || v.state === 'inCar' || v.state === 'walking' ? 1 : 0);
+      const score = load * 1000 + Math.hypot(v.x - car.x, v.z - car.z);
+      if (score < bestScore) { bestScore = score; best = v; }
+    }
+    return best;
+  }
 
   private cancel = (e: PointerEvent) => {
     if (e.pointerId !== this.pointerId) return;
