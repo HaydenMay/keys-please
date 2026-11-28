@@ -8,7 +8,7 @@ Play: https://haydenmay.github.io/keys-please/ (deployed automatically from `mai
 
 ## How to play the sandbox
 
-- **Career (default):** you start with 8 stalls, 2 curb spots and 1 valet. A shift ends once every customer has arrived and left. Your earnings go into the bank, and you spend them in a shop with fixed upgrades: hire a valet, expand the lot, widen the curb, running shoes. Each shift brings more customers, arriving faster. Progress saves on the device; use Tune → New career to start over. Set `career.enabled` off for the old endless sandbox.
+- **Career (default):** you start with 8 stalls, 2 curb spots and 1 valet. A shift ends once every customer has arrived and left. Your earnings go into the bank, and you spend them in a shop with fixed upgrades: hire a valet, expand the lot, widen the curb, running shoes. Each shift brings more customers, arriving faster. Once the last customer is parked it's closing time, and everyone still inside leaves within 8–40s. Whenever nothing needs you, the game fast-forwards at 4×. Progress saves on the device; use Tune → New career to start over. Set `career.enabled` off for the old endless sandbox.
 
 - **Drop-off:** a car with a yellow diamond is waiting at the curb. Its label shows the reason for the visit and an estimated stay (Gym ~20–40s, Diner ~45–80s, Steakhouse ~2–3 min, Movie ~2–3 min; all tunable under `stores`). Quick visits belong near the curb and long ones deep in the lot. Parked cars get a store-colored roof dot, which you can turn off to make it a memory test.
 - **Earnings** = tip + parking fee ($2 per minute parked). Tips shrink the longer a pickup waits and are scaled by store, so steakhouse customers tip best.

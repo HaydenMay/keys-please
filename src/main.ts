@@ -105,7 +105,7 @@ const ranges: Record<string, [number, number, number]> = {
   spawnInterval: [2, 40, 0.5], spawnJitter: [0, 15, 0.5], startParked: [0, 30, 1],
   pickupPatience: [5, 180, 5], dropoffPatience: [5, 180, 5], streetPatience: [5, 180, 5], maxTip: [0, 100, 1], minTip: [0, 50, 1], handoffTime: [0, 5, 0.1], laneHandoffAfter: [0, 30, 0.5],
   stallsPerRow: [2, 16, 1], rowPairs: [1, 3, 1], stallWidth: [2.4, 4, 0.1], stallDepth: [4.5, 7, 0.1], aisleWidth: [5, 10, 0.5], sideLaneWidth: [5, 10, 0.5], curbSpots: [1, 6, 1], pickupOnlySpots: [0, 3, 1],
-  padding: [0, 6, 0.5], stayMin: [5, 400, 5], stayMax: [5, 600, 5], weight: [0, 10, 0.5], tipMultiplier: [0, 4, 0.1], parkingRatePerMinute: [0, 20, 0.5],
+  padding: [0, 6, 0.5], closingMin: [0, 60, 1], closingMax: [0, 120, 1], idleFastForward: [1, 8, 0.5], stayMin: [5, 400, 5], stayMax: [5, 600, 5], weight: [0, 10, 0.5], tipMultiplier: [0, 4, 0.1], parkingRatePerMinute: [0, 20, 0.5],
 };
 const needsRestart = new Set(['count', 'startParked', 'stallsPerRow', 'rowPairs', 'stallWidth', 'stallDepth', 'aisleWidth', 'sideLaneWidth', 'curbSpots', 'pickupOnlySpots']);
 
@@ -154,7 +154,9 @@ function frame(now: number) {
   last = now;
   if (cfg.career.enabled && !shopOpen && world.shiftOver) endShift();
   if (!hud.paused && !shopOpen) {
-    acc += dt * cfg.sim.timeScale;
+    const ff = cfg.career.enabled && world.idle ? Math.max(1, cfg.career.idleFastForward) : 1;
+    hud.setFastForward(ff > 1);
+    acc += dt * cfg.sim.timeScale * ff;
     while (acc >= STEP) { world.update(STEP); acc -= STEP; }
   }
   view.sync(hud.paused ? 0 : dt);

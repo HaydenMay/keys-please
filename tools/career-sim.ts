@@ -30,8 +30,10 @@ for (let i = 0; i < shifts; i++) {
         world.queueOrder(car, world.lot.nodes[world.lot.curbs[0]]);
       }
     }
+    // Real time the player experiences (idle stretches run fast-forwarded).
+    const ff = world.idle ? Math.max(1, cfg.career.idleFastForward) : 1;
     world.update(dt);
-    t += dt;
+    t += dt / ff;
   }
   const s = world.stats;
   career.bank += s.earnings;

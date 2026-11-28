@@ -133,6 +133,11 @@ export const defaultConfig = {
     baseSpawnInterval: 14,
     spawnIntervalStep: 1,
     minSpawnInterval: 5,
+    /** Once the last customer is parked, everyone still inside leaves within this window (seconds). */
+    closingMin: 8,
+    closingMax: 40,
+    /** Speed the game up while nothing needs you (no tickets, orders or cars at the curb). 1 = off. */
+    idleFastForward: 4,
     startValets: 1,
     startCurbSpots: 2,
     /** Lot layouts by level: [stalls per row, row pairs]. Level 0 = 4×1 = 8 stalls. */

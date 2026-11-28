@@ -113,6 +113,8 @@ export class World {
   /** Career shifts: stop arrivals after this many customers (null = endless sandbox). */
   maxArrivals: number | null = null;
   arrivals = 0;
+  /** Career: last customer is parked, so everyone else is heading out. */
+  closing = false;
   /** Career upgrade: valet walking speed multiplier. */
   walkMultiplier = 1;
 
@@ -150,6 +152,28 @@ export class World {
   }
 
   /** A career shift is over once every customer has arrived and left (served or lost). */
+  /** Nothing needs the player right now: no tickets, orders, curb cars or busy valets. */
+  get idle(): boolean {
+    if (this.tickets.size || this.orders.length || this.streetQueue.length) return false;
+    for (const c of this.cars.values()) if (c.state !== 'parked' && c.state !== 'leaving') return false;
+    return this.valets.every((v) => v.state === 'idle' || v.state === 'returning');
+  }
+
+  private updateClosing() {
+    if (this.closing || this.maxArrivals === null || this.arrivals < this.maxArrivals || this.streetQueue.length) return;
+    for (const c of this.cars.values()) if (c.state === 'arriving' || c.state === 'waitingDropoff' || (c.state !== 'parked' && !c.requested && c.state !== 'leaving' && c.state !== 'handoff')) return;
+    this.closing = true;
+    const K = this.cfg.career;
+    let any = false;
+    for (const c of this.cars.values()) {
+      if (c.state === 'parked' && !c.requested) {
+        c.stayLeft = Math.min(c.stayLeft, this.rng.range(K.closingMin, K.closingMax));
+        any = true;
+      }
+    }
+    if (any) this.emit({ type: 'toast', text: "Closing time! Everyone's heading out", tone: 'info' });
+  }
+
   get shiftOver(): boolean {
     return this.maxArrivals !== null && this.arrivals >= this.maxArrivals && this.streetQueue.length === 0 && this.cars.size === 0;
   }
@@ -368,6 +392,7 @@ export class World {
   update(dt: number) {
     this.time += dt;
     this.updateSpawns(dt);
+    this.updateClosing();
     this.dispatchOrders();
     this.updateCurbQueue();
     this.updateYield();

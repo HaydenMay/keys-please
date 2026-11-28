@@ -82,6 +82,10 @@ export class Hud {
     shop.querySelector<HTMLButtonElement>('.next')!.addEventListener('click', o.onNext);
   }
 
+  setFastForward(on: boolean) {
+    document.getElementById('ff')!.classList.toggle('hidden', !on);
+  }
+
   hideShop() {
     document.getElementById('shop')!.classList.add('hidden');
   }

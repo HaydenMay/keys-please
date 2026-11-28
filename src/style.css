@@ -80,3 +80,5 @@ button:active { background: #3a414c; }
 #shop .upgrade button:disabled { color: var(--dim); border-color: #444b55; opacity: 0.6; }
 #shop .next { width: 100%; margin-top: 14px; padding: 12px; font-size: 15px; font-weight: 700; background: var(--accent); color: #102030; border: none; }
 .shift { color: var(--accent); }
+#ff { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(20, 22, 26, 0.85); color: var(--accent); padding: 4px 12px; border-radius: 999px; font-size: 12px; pointer-events: none; z-index: 5; }
+#ff.hidden { display: none; }
