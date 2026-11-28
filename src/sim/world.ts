@@ -36,6 +36,8 @@ export interface Car {
   claimedBy: number | null;
   /** Valet whose order queue includes this car. */
   queuedBy: number | null;
+  /** Queue mode: the valet is in the car but its spot vanished and the lot is full; retry each tick. */
+  retryOrder: Order | null;
   /** Driving to (or sitting in) the curb lane, waiting for a curb spot to open. */
   waitingForCurb: boolean;
   curbWait: number;
@@ -483,7 +485,7 @@ export class World {
     const car: Car = {
       id: this.nextId++, paint, body, rack, store: this.pickStore(), parkedTime: 0, x, z, heading, state: 'arriving', nodeId: -1, route: [], routeIdx: 0,
       reverseSegment: -1, destNode: -1, yieldTimer: 0, blockedBy: null, stayLeft: 0, requested: false, ticketId: null,
-      valetId: null, claimedBy: null, queuedBy: null, waitingForCurb: false, curbWait: 0, handoffLeft: 0,
+      valetId: null, claimedBy: null, queuedBy: null, retryOrder: null, waitingForCurb: false, curbWait: 0, handoffLeft: 0,
     };
     this.cars.set(car.id, car);
     return car;
@@ -543,6 +545,7 @@ export class World {
         return;
       }
       case 'awaitingDrive':
+        if (car.retryOrder && car.valetId !== null) this.autoDrive(car, car.retryOrder);
         return;
       case 'curbQueue': {
         // Curb still jammed: the customer walks out to the car in the lane instead of waiting forever.
@@ -755,15 +758,19 @@ export class World {
       }
       return;
     }
-    const dest = this.lot.nodes[order.dest];
-    const nodes = this.canPark(car, dest) ? shortestPath(this.lot, car.nodeId, dest.id) : null;
-    if (!nodes) {
+    // Planned stall, or if someone took it, the free stall nearest to it. Lot full: wait in the car and retry.
+    const planned = this.lot.nodes[order.dest];
+    let dest: LotNode | null = this.canPark(car, planned) ? planned : null;
+    if (!dest) {
       this.releaseDest(order);
-      this.emit({ type: 'toast', text: 'Spot taken — drag the car somewhere', tone: 'info', x: car.x, z: car.z });
+      const free = this.lot.stalls.map((id) => this.lot.nodes[id]).filter((n) => this.canPark(car, n));
+      if (free.length) dest = free.reduce((a, b) => (Math.hypot(a.x - planned.x, a.z - planned.z) <= Math.hypot(b.x - planned.x, b.z - planned.z) ? a : b));
+    }
+    if (!dest || !this.driveTo(car, dest.id)) {
+      car.retryOrder = order;
       return;
     }
-    const plan: DrivePlan = { valid: true, destNode: dest.id, nodes, points: nodes.map((id) => ({ x: this.lot.nodes[id].x, z: this.lot.nodes[id].z })) };
-    this.commitDrive(car, plan);
+    car.retryOrder = null;
   }
 
   /** A free curb spot for this car: the preferred one if open, else the nearest open one. */

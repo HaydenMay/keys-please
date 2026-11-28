@@ -111,14 +111,14 @@ export const defaultConfig = {
    * weight = how often this store's customers show up. tipMultiplier scales their tips.
    */
   stores: {
-    Gym: { stayMin: 20, stayMax: 40, weight: 3, tipMultiplier: 0.7, color: '#4fc3f7' },
-    Diner: { stayMin: 45, stayMax: 80, weight: 3, tipMultiplier: 1, color: '#ffb74d' },
-    Steakhouse: { stayMin: 110, stayMax: 170, weight: 2, tipMultiplier: 1.6, color: '#e57373' },
-    Movie: { stayMin: 140, stayMax: 200, weight: 2, tipMultiplier: 1.1, color: '#ba68c8' },
+    Gym: { stayMin: 10, stayMax: 20, weight: 3, tipMultiplier: 0.7, color: '#4fc3f7' },
+    Diner: { stayMin: 22, stayMax: 40, weight: 3, tipMultiplier: 1, color: '#ffb74d' },
+    Steakhouse: { stayMin: 55, stayMax: 85, weight: 2, tipMultiplier: 1.6, color: '#e57373' },
+    Movie: { stayMin: 70, stayMax: 100, weight: 2, tipMultiplier: 1.1, color: '#ba68c8' },
   } as Record<string, { stayMin: number; stayMax: number; weight: number; tipMultiplier: number; color: string }>,
   economy: {
     /** Parking fee in $ per minute a car spends parked. */
-    parkingRatePerMinute: 2,
+    parkingRatePerMinute: 4,
   },
   /**
    * Career mode: start tiny, earn money each shift, buy upgrades between shifts.
@@ -127,15 +127,15 @@ export const defaultConfig = {
   career: {
     enabled: true,
     /** Customers in shift 1, and how many more each shift after. */
-    baseCustomers: 12,
-    customersPerShift: 3,
+    baseCustomers: 8,
+    customersPerShift: 2,
     /** Seconds between arrivals in shift 1, how much faster each shift, and the floor. */
-    baseSpawnInterval: 14,
-    spawnIntervalStep: 1,
-    minSpawnInterval: 5,
+    baseSpawnInterval: 7.5,
+    spawnIntervalStep: 0.5,
+    minSpawnInterval: 3,
     /** Once the last customer is parked, everyone still inside leaves within this window (seconds). */
-    closingMin: 8,
-    closingMax: 40,
+    closingMin: 3,
+    closingMax: 10,
     /** Speed the game up while nothing needs you (no tickets, orders or cars at the curb). 1 = off. */
     idleFastForward: 4,
     startValets: 1,
@@ -143,10 +143,10 @@ export const defaultConfig = {
     /** Lot layouts by level: [stalls per row, row pairs]. Level 0 = 4×1 = 8 stalls. */
     lotLevels: [[4, 1], [6, 1], [8, 1], [6, 2], [8, 2]] as [number, number][],
     upgrades: {
-      valet: { name: 'Hire a valet', description: '+1 valet', costs: [180, 450, 900] },
-      lot: { name: 'Expand the lot', description: 'More stalls', costs: [120, 250, 450, 700] },
-      curb: { name: 'Widen the curb', description: '+1 curb spot', costs: [150, 300, 500] },
-      shoes: { name: 'Running shoes', description: '+15% valet walking speed', costs: [80, 160, 300] },
+      valet: { name: 'Hire a valet', description: '+1 valet', costs: [100, 260, 520] },
+      lot: { name: 'Expand the lot', description: 'More stalls', costs: [80, 160, 280, 420] },
+      curb: { name: 'Widen the curb', description: '+1 curb spot', costs: [90, 180, 300] },
+      shoes: { name: 'Running shoes', description: '+15% valet walking speed', costs: [60, 120, 200] },
     } as Record<string, { name: string; description: string; costs: number[] }>,
   },
   /** One color per valet; their order badges use the same color. */

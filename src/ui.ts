@@ -193,7 +193,7 @@ export class Hud {
       if (!el) {
         el = document.createElement('div');
         el.className = 'ticket';
-        el.innerHTML = `<div class="t-label">PICKUP · <span class="t-store"></span></div><div class="t-desc"></div><div class="t-bar"><i></i></div>`;
+        el.innerHTML = `<div class="t-label"><span class="t-store"></span></div><div class="t-desc"></div><div class="t-bar"><i></i></div>`;
         el.querySelector('.t-desc')!.textContent = t.description;
         const storeEl = el.querySelector('.t-store') as HTMLElement;
         storeEl.textContent = t.store.toUpperCase();
@@ -207,6 +207,14 @@ export class Hud {
       el.classList.toggle('angry', t.angry);
       el.classList.toggle('urgent', !t.angry && left < 0.33);
     }
+    document.getElementById('pickup-count')!.textContent = live.length ? `(${live.length})` : '';
+    // If some tickets are scrolled out of view, say so.
+    const side = document.getElementById('side')!;
+    const bottom = side.getBoundingClientRect().bottom;
+    const hidden = [...this.ticketEls.values()].filter((e) => e.getBoundingClientRect().bottom > bottom + 1).length;
+    const more = document.getElementById('more-tickets')!;
+    more.textContent = hidden ? `▼ ${hidden} more` : '';
+    more.style.display = hidden ? 'block' : 'none';
     // Keep DOM order matching urgency.
     live.forEach((t) => this.tickets.appendChild(this.ticketEls.get(t.id)!));
     if (!live.length) {

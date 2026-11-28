@@ -9,7 +9,9 @@
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "sim": "tsx tools/headless-sim.ts",
-    "career-sim": "tsx tools/career-sim.ts"
+    "career-sim": "tsx tools/career-sim.ts",
+    "pacing": "tsx tools/pacing-report.ts",
+    "stress": "tsx tools/deadlock-stress.ts"
   },
   "dependencies": {
     "lil-gui": "^0.21.0",

@@ -8,10 +8,10 @@ Play: https://haydenmay.github.io/keys-please/ (deployed automatically from `mai
 
 ## How to play the sandbox
 
-- **Career (default):** you start with 8 stalls, 2 curb spots and 1 valet. A shift ends once every customer has arrived and left. Your earnings go into the bank, and you spend them in a shop with fixed upgrades: hire a valet, expand the lot, widen the curb, running shoes. Each shift brings more customers, arriving faster. Once the last customer is parked it's closing time, and everyone still inside leaves within 8–40s. Whenever nothing needs you, the game fast-forwards at 4×. Progress saves on the device; use Tune → New career to start over. Set `career.enabled` off for the old endless sandbox.
+- **Career (default):** you start with 8 stalls, 2 curb spots and 1 valet. A shift ends once every customer has arrived and left. Your earnings go into the bank, and you spend them in a shop with fixed upgrades: hire a valet, expand the lot, widen the curb, running shoes. Each shift brings more customers, arriving faster. Once the last customer is parked it's closing time, and everyone still inside leaves within 3–10s. Whenever nothing needs you, the game fast-forwards at 4×. Progress saves on the device; use Tune → New career to start over. Set `career.enabled` off for the old endless sandbox.
 
-- **Drop-off:** a car with a yellow diamond is waiting at the curb. Its label shows the reason for the visit and an estimated stay (Gym ~20–40s, Diner ~45–80s, Steakhouse ~2–3 min, Movie ~2–3 min; all tunable under `stores`). Quick visits belong near the curb and long ones deep in the lot. Parked cars get a store-colored roof dot, which you can turn off to make it a memory test.
-- **Earnings** = tip + parking fee ($2 per minute parked). Tips shrink the longer a pickup waits and are scaled by store, so steakhouse customers tip best.
+- **Drop-off:** a car with a yellow diamond is waiting at the curb. Its label shows the reason for the visit and an estimated stay (Gym ~10–20s, Diner ~20–40s, Steakhouse ~55–85s, Movie ~70–100s; all tunable under `stores`). Quick visits belong near the curb and long ones deep in the lot. Parked cars get a store-colored roof dot, which you can turn off to make it a memory test.
+- **Earnings** = tip + parking fee ($4 per minute parked). Tips shrink the longer a pickup waits and are scaled by store, so steakhouse customers tip best.
 - **Pickup:** a ticket appears in the Pickups panel. Find that car and send it to the curb. If you pick the wrong car, the keys don't fit.
 - **Queue mode (default):** tap a car, then tap where it should go. That adds a numbered order to one shared list, and the nearest free valet takes the next order. A car being worked on shows an arrow badge in that valet's color. Tap a queued car to cancel its order. After a job, valets wait a couple of seconds, then walk back to the desk if nothing's queued.
 - **Curb:** any curb spot works for a pickup, even a busy one. If every spot is taken, the valet pulls into the curb lane and waits. After a few seconds, the customer walks out to the car there instead. New arrivals can't take a curb spot that an incoming pickup needs, so they wait on the street, and they give up after 30s.
@@ -36,8 +36,14 @@ npm run dev        # local server (use --host to open on your phone on the same 
 npm run sim        # headless bot shifts: random vs. smart parking, catches stuck cars
 npm run sim -- 20 300 4 2 # stress: 20 shifts, 300s each, an arrival every 4s, only 2 curb spots
 npm run career-sim -- 10  # bot plays a 10-shift career, buying the cheapest upgrades
+npm run pacing -- 6 8     # before/after pacing comparison on the same seeds
+npm run stress            # deadlock stress matrix (648 shifts) + scripted curb jam
 npm run build
 ```
+
+## Iteration notes
+
+- [Pacing iteration 1](docs/iteration-pacing-1.md): shorter shifts, deadlock verification, ticket overflow, economy retune, and before/after numbers
 
 ## Code layout
 

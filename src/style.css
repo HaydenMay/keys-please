@@ -26,10 +26,10 @@ button:active { background: #3a414c; }
 #stage canvas { display: block; touch-action: none; }
 #side { width: 210px; background: var(--panel); padding: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .side-title { font-size: 11px; letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; }
-#tickets { display: flex; flex-direction: column; gap: 6px; }
-.ticket { background: #f3efe2; color: #222; border-radius: 6px; padding: 6px 8px; border-left: 4px solid var(--accent); }
-.ticket .t-label { font-size: 9px; letter-spacing: 0.15em; color: #777; }
-.ticket .t-desc { font-weight: 600; font-size: 14px; margin: 2px 0 4px; }
+#tickets { display: grid; grid-template-columns: 1fr; gap: 5px; }
+.ticket { background: #f3efe2; color: #222; border-radius: 6px; padding: 4px 7px; border-left: 4px solid var(--accent); min-width: 0; }
+.ticket .t-label { font-size: 9px; letter-spacing: 0.15em; color: #777; line-height: 1.1; }
+.ticket .t-desc { font-weight: 600; font-size: 13px; line-height: 1.2; margin: 1px 0 3px; overflow-wrap: anywhere; }
 .ticket .t-bar { height: 4px; background: #ddd6c4; border-radius: 2px; overflow: hidden; }
 .ticket .t-bar i { display: block; height: 100%; background: var(--good); }
 .ticket.urgent { border-left-color: var(--warn); }
@@ -53,9 +53,9 @@ button:active { background: #3a414c; }
 /* Portrait: tickets move under the lot */
 @media (orientation: portrait) {
   #main { flex-direction: column; }
-  #side { width: auto; height: 120px; flex-direction: column; }
-  #tickets { flex-direction: row; overflow-x: auto; }
-  .ticket { min-width: 150px; }
+  /* Portrait: every pickup stays visible in a wrapping grid under the lot (scrolls only if huge). */
+  #side { width: auto; height: auto; min-height: 64px; max-height: 34dvh; flex-direction: column; padding: 6px 8px; }
+  #tickets { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
   #stats { font-size: 12px; }
   #toasts { bottom: 136px; left: 50%; }
 }
@@ -82,3 +82,5 @@ button:active { background: #3a414c; }
 .shift { color: var(--accent); }
 #ff { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(20, 22, 26, 0.85); color: var(--accent); padding: 4px 12px; border-radius: 999px; font-size: 12px; pointer-events: none; z-index: 5; }
 #ff.hidden { display: none; }
+#side { position: relative; }
+#more-tickets { display: none; position: sticky; bottom: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--warn); background: linear-gradient(transparent, var(--panel) 40%); padding: 10px 0 2px; }
